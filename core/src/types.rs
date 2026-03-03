@@ -1,7 +1,21 @@
 #[derive(Debug, Clone)]
 pub struct Problem {
-    pub size: Size,
-    pub clues: Clues,
+    size: Size,
+    clues: Clues,
+}
+
+impl Problem {
+    pub fn new(size: Size, clues: Clues) -> Self {
+        Self { size, clues }
+    }
+
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
+    pub fn clues(&self) -> &Clues {
+        &self.clues
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -10,10 +24,38 @@ pub struct Size {
     height: usize,
 }
 
+impl Size {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self { width, height }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Clues {
-    row: Vec<u8>,
-    col: Vec<u8>,
+    row: Vec<Vec<u8>>,
+    col: Vec<Vec<u8>>,
+}
+
+impl Clues {
+    pub fn new(row: Vec<Vec<u8>>, col: Vec<Vec<u8>>) -> Self {
+        Self { row, col }
+    }
+
+    pub fn rows(&self) -> &[Vec<u8>] {
+        &self.row
+    }
+
+    pub fn cols(&self) -> &[Vec<u8>] {
+        &self.col
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -26,10 +68,19 @@ pub enum SolveResult {
 #[derive(Debug, Clone)]
 pub struct Solution {
     size: Size,
-    // 各要素は行を表す。u8 は bit-wise の塗り状態を表す。
-    // 1 = filled, 0 = empty
-    // 最初の要素が 1~8 マス目の塗り状態,
-    // 次の要素が 9~16 マス目の塗り状態,...
-    // となる。
-    grid: Vec<Vec<u8>>,
+    grid: Vec<Vec<bool>>,
+}
+
+impl Solution {
+    pub fn new(size: Size, grid: Vec<Vec<bool>>) -> Self {
+        Self { size, grid }
+    }
+
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
+    pub fn grid(&self) -> &[Vec<bool>] {
+        &self.grid
+    }
 }

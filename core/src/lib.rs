@@ -1,3 +1,3 @@
-mod error;
-mod solver;
-mod types;
+pub mod error;
+pub mod solver;
+pub mod types;
