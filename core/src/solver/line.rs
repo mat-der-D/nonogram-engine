@@ -6,7 +6,6 @@ use crate::solver::CellState;
 /// Returns `Ok(true)` if any cell was updated, `Ok(false)` if no changes,
 /// or `Err` if a contradiction is detected.
 pub fn solve_line(clues: &[u8], line: &mut [CellState]) -> Result<bool, SolveError> {
-    let n = line.len();
     let k = clues.len();
 
     // Empty clues: all cells must be empty
@@ -54,11 +53,11 @@ pub fn solve_line(clues: &[u8], line: &mut [CellState]) -> Result<bool, SolveErr
         let l_start = left[i];
         let r_start = right[i];
 
-        // Overlap region: from r_start to l_start + c - 1
-        if r_start <= l_start + c - 1 {
-            for j in r_start..=l_start + c - 1 {
-                if line[j] == CellState::Unknown {
-                    line[j] = CellState::Filled;
+        // Overlap region: [r_start, l_start + c)
+        if r_start < l_start + c {
+            for cell in line[r_start..l_start + c].iter_mut() {
+                if *cell == CellState::Unknown {
+                    *cell = CellState::Filled;
                     changed = true;
                 }
             }
@@ -68,15 +67,15 @@ pub fn solve_line(clues: &[u8], line: &mut [CellState]) -> Result<bool, SolveErr
     // Step 4: Cells not covered by any block's possible range → mark EMPTY
     // Blocks are ordered, so we can do a single linear pass.
     let mut block = 0;
-    for j in 0..n {
+    for (j, cell) in line.iter_mut().enumerate() {
         // Advance past blocks whose coverage ends before j
         while block < k && right[block] + clues[block] as usize <= j {
             block += 1;
         }
-        if line[j] == CellState::Unknown {
+        if *cell == CellState::Unknown {
             let covered = block < k && j >= left[block];
             if !covered {
-                line[j] = CellState::Empty;
+                *cell = CellState::Empty;
                 changed = true;
             }
         }
@@ -112,7 +111,7 @@ fn compute_left(clues: &[u8], line: &[CellState]) -> Option<Vec<usize>> {
 
 /// Check if any FILLED cells exist at or after `from`.
 fn has_trailing_filled(line: &[CellState], from: usize) -> bool {
-    line[from..].iter().any(|c| *c == CellState::Filled)
+    line[from..].contains(&CellState::Filled)
 }
 
 /// Try to place a block of size `c` starting at or after `start`.
@@ -159,11 +158,7 @@ fn adjust_left_for_trailing_filled(
     // The last block must cover rightmost_filled
     // So last block start <= rightmost_filled and start + c - 1 >= rightmost_filled
     let last_c = clues[k - 1] as usize;
-    let min_start_for_last = if rightmost_filled + 1 >= last_c {
-        rightmost_filled + 1 - last_c
-    } else {
-        0
-    };
+    let min_start_for_last = (rightmost_filled + 1).saturating_sub(last_c);
 
     // Re-place from end: ensure last block covers the rightmost filled
     if left[k - 1] < min_start_for_last {
