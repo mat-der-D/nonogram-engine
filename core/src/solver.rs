@@ -3,10 +3,7 @@ mod line_solver;
 
 pub use line_solver::LineSolver;
 
-use crate::{
-    error::SolveError,
-    types::{Problem, SolveResult},
-};
+use crate::types::{Problem, SolveResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CellState {
@@ -15,8 +12,8 @@ pub enum CellState {
     Unknown,
 }
 
-pub type Grid = Vec<Vec<CellState>>;
+pub(crate) type Grid = Vec<Vec<CellState>>;
 
 pub trait Solver {
-    fn solve(problem: &Problem) -> Result<SolveResult, SolveError>;
+    fn solve(problem: &Problem) -> SolveResult;
 }

@@ -1,4 +1,3 @@
-use crate::error::SolveError;
 use crate::solver::line::solve_line;
 use crate::solver::{CellState, Grid, Solver};
 use crate::types::{Problem, Solution, SolveResult};
@@ -6,31 +5,25 @@ use crate::types::{Problem, Solution, SolveResult};
 pub struct LineSolver;
 
 impl Solver for LineSolver {
-    fn solve(problem: &Problem) -> Result<SolveResult, SolveError> {
+    fn solve(problem: &Problem) -> SolveResult {
         let clues = problem.clues();
         let height = clues.height();
         let width = clues.width();
 
-        // Initialize grid with Unknown
         let mut grid: Grid = vec![vec![CellState::Unknown; width]; height];
 
-        match solve_with_backtracking(&mut grid, clues.rows(), clues.cols()) {
-            Ok(true) => {
-                let bool_grid = grid_to_bool(&grid);
-                Ok(SolveResult::Unique(Solution::new(bool_grid)))
-            }
-            Ok(false) => Ok(SolveResult::NoSolution),
-            Err(e) => Err(e),
+        if solve_with_backtracking(&mut grid, clues.rows(), clues.cols()) {
+            let bool_grid = grid_to_bool(&grid);
+            SolveResult::Unique(Solution::new(bool_grid))
+        } else {
+            SolveResult::NoSolution
         }
     }
 }
 
 /// Run line solving to fixed point.
-fn propagate(
-    grid: &mut Grid,
-    row_clues: &[Vec<u8>],
-    col_clues: &[Vec<u8>],
-) -> Result<(), SolveError> {
+/// Returns `true` if propagation succeeded, `false` if a contradiction was found.
+fn propagate(grid: &mut Grid, row_clues: &[Vec<u8>], col_clues: &[Vec<u8>]) -> bool {
     let height = grid.len();
     let width = grid[0].len();
     let mut col_buf: Vec<CellState> = vec![CellState::Unknown; height];
@@ -38,31 +31,35 @@ fn propagate(
     loop {
         let mut changed = false;
 
-        // Solve each row
         for r in 0..height {
-            changed |= solve_line(&row_clues[r], &mut grid[r])?;
+            match solve_line(&row_clues[r], &mut grid[r]) {
+                Some(c) => changed |= c,
+                None => return false,
+            }
         }
 
-        // Solve each column
         for c in 0..width {
             for r in 0..height {
                 col_buf[r] = grid[r][c];
             }
 
-            if solve_line(&col_clues[c], &mut col_buf)? {
-                changed = true;
-                for r in 0..height {
-                    grid[r][c] = col_buf[r];
+            match solve_line(&col_clues[c], &mut col_buf) {
+                Some(col_changed) => {
+                    if col_changed {
+                        changed = true;
+                        for r in 0..height {
+                            grid[r][c] = col_buf[r];
+                        }
+                    }
                 }
+                None => return false,
             }
         }
 
         if !changed {
-            break;
+            return true;
         }
     }
-
-    Ok(())
 }
 
 /// Find the first Unknown cell (row, col).
@@ -78,41 +75,32 @@ fn find_unknown(grid: &Grid) -> Option<(usize, usize)> {
 }
 
 /// Solve with line propagation + backtracking.
-/// Returns Ok(true) if solved, Ok(false) if no solution, Err on invalid problem.
+/// Returns `true` if a solution was found, `false` otherwise.
 fn solve_with_backtracking(
     grid: &mut Grid,
     row_clues: &[Vec<u8>],
     col_clues: &[Vec<u8>],
-) -> Result<bool, SolveError> {
-    // Propagate to fixed point
-    if propagate(grid, row_clues, col_clues).is_err() {
-        return Ok(false); // Contradiction during propagation
+) -> bool {
+    if !propagate(grid, row_clues, col_clues) {
+        return false;
     }
 
-    // Find an unknown cell to branch on
     let (r, c) = match find_unknown(grid) {
         Some(pos) => pos,
-        None => return Ok(true), // Fully solved
+        None => return true,
     };
 
-    // Try Filled first
     for guess in [CellState::Filled, CellState::Empty] {
         let mut grid_copy = grid.clone();
         grid_copy[r][c] = guess;
 
-        match solve_with_backtracking(&mut grid_copy, row_clues, col_clues) {
-            Ok(true) => {
-                // Found a solution — copy it back
-                *grid = grid_copy;
-                return Ok(true);
-            }
-            Ok(false) => continue, // Try next guess
-            Err(e) => return Err(e),
+        if solve_with_backtracking(&mut grid_copy, row_clues, col_clues) {
+            *grid = grid_copy;
+            return true;
         }
     }
 
-    // Both guesses failed
-    Ok(false)
+    false
 }
 
 fn grid_to_bool(grid: &Grid) -> Vec<Vec<bool>> {
@@ -130,15 +118,13 @@ mod tests {
     fn solve_puzzle(
         row_clues: Vec<Vec<u8>>,
         col_clues: Vec<Vec<u8>>,
-    ) -> Result<Vec<Vec<bool>>, String> {
+    ) -> Option<Vec<Vec<bool>>> {
         let clues = Clues::new(row_clues, col_clues);
         let problem = Problem::new(clues);
 
         match LineSolver::solve(&problem) {
-            Ok(SolveResult::Unique(sol)) => Ok(sol.grid().to_vec()),
-            Ok(SolveResult::NoSolution) => Err("no solution".into()),
-            Ok(SolveResult::Multiple(_)) => Err("multiple solutions".into()),
-            Err(e) => Err(e.to_string()),
+            SolveResult::Unique(sol) => Some(sol.grid().to_vec()),
+            _ => None,
         }
     }
 
@@ -205,7 +191,7 @@ mod tests {
     fn test_no_solution() {
         // Contradictory: row says all filled, col says all empty
         let result = solve_puzzle(vec![vec![2]], vec![vec![0], vec![0]]);
-        assert!(result.is_err() || result.unwrap_err().contains("no solution"));
+        assert!(result.is_none());
     }
 
     #[test]
@@ -231,6 +217,6 @@ mod tests {
         // 1 row clue but 3 col clues — grid will be 1×3, which is valid.
         // Instead test that a puzzle with contradictory clues yields no solution.
         let result = solve_puzzle(vec![vec![3]], vec![vec![0], vec![0], vec![0]]);
-        assert!(result.is_err());
+        assert!(result.is_none());
     }
 }

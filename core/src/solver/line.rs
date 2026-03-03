@@ -1,11 +1,10 @@
-use crate::error::SolveError;
 use crate::solver::CellState;
 
 /// Solve a single line (row or column) given its clues and current state.
 ///
-/// Returns `Ok(true)` if any cell was updated, `Ok(false)` if no changes,
-/// or `Err` if a contradiction is detected.
-pub fn solve_line(clues: &[u8], line: &mut [CellState]) -> Result<bool, SolveError> {
+/// Returns `Some(true)` if any cell was updated, `Some(false)` if no changes,
+/// or `None` if an impossible state is detected.
+pub(crate) fn solve_line(clues: &[u8], line: &mut [CellState]) -> Option<bool> {
     let k = clues.len();
 
     // Empty clues: all cells must be empty
@@ -13,37 +12,21 @@ pub fn solve_line(clues: &[u8], line: &mut [CellState]) -> Result<bool, SolveErr
         let mut changed = false;
         for cell in line.iter_mut() {
             if *cell == CellState::Filled {
-                return Err(SolveError::InvalidProblem(
-                    "contradiction: filled cell in empty-clue line".into(),
-                ));
+                return None;
             }
             if *cell == CellState::Unknown {
                 *cell = CellState::Empty;
                 changed = true;
             }
         }
-        return Ok(changed);
+        return Some(changed);
     }
 
     // Compute leftmost placement for each block
-    let left = match compute_left(clues, line) {
-        Some(l) => l,
-        None => {
-            return Err(SolveError::InvalidProblem(
-                "contradiction: no valid left placement".into(),
-            ));
-        }
-    };
+    let left = compute_left(clues, line)?;
 
     // Compute rightmost placement for each block
-    let right = match compute_right(clues, line) {
-        Some(r) => r,
-        None => {
-            return Err(SolveError::InvalidProblem(
-                "contradiction: no valid right placement".into(),
-            ));
-        }
-    };
+    let right = compute_right(clues, line)?;
 
     let mut changed = false;
 
@@ -81,7 +64,7 @@ pub fn solve_line(clues: &[u8], line: &mut [CellState]) -> Result<bool, SolveErr
         }
     }
 
-    Ok(changed)
+    Some(changed)
 }
 
 /// Compute the leftmost valid start position for each block.
@@ -286,7 +269,7 @@ mod tests {
     fn test_contradiction_filled_in_empty_clue() {
         let mut line = vec![Unknown, Filled, Unknown];
         let result = solve_line(&[], &mut line);
-        assert!(result.is_err());
+        assert!(result.is_none());
     }
 
     #[test]
