@@ -7,26 +7,9 @@ pub struct LineSolver;
 
 impl Solver for LineSolver {
     fn solve(problem: &Problem) -> Result<SolveResult, SolveError> {
-        let size = problem.size();
         let clues = problem.clues();
-        let height = size.height();
-        let width = size.width();
-
-        // Validate clue dimensions
-        if clues.rows().len() != height {
-            return Err(SolveError::InvalidProblem(format!(
-                "expected {} row clues, got {}",
-                height,
-                clues.rows().len()
-            )));
-        }
-        if clues.cols().len() != width {
-            return Err(SolveError::InvalidProblem(format!(
-                "expected {} col clues, got {}",
-                width,
-                clues.cols().len()
-            )));
-        }
+        let height = clues.height();
+        let width = clues.width();
 
         // Initialize grid with Unknown
         let mut grid: Grid = vec![vec![CellState::Unknown; width]; height];
@@ -34,7 +17,7 @@ impl Solver for LineSolver {
         match solve_with_backtracking(&mut grid, clues.rows(), clues.cols()) {
             Ok(true) => {
                 let bool_grid = grid_to_bool(&grid);
-                Ok(SolveResult::Unique(Solution::new(size, bool_grid)))
+                Ok(SolveResult::Unique(Solution::new(bool_grid)))
             }
             Ok(false) => Ok(SolveResult::NoSolution),
             Err(e) => Err(e),
@@ -141,18 +124,15 @@ fn grid_to_bool(grid: &Grid) -> Vec<Vec<bool>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Clues, Size};
+    use crate::types::Clues;
 
     /// Helper to solve a puzzle and return the bool grid.
     fn solve_puzzle(
-        width: usize,
-        height: usize,
         row_clues: Vec<Vec<u8>>,
         col_clues: Vec<Vec<u8>>,
     ) -> Result<Vec<Vec<bool>>, String> {
-        let size = Size::new(width, height);
         let clues = Clues::new(row_clues, col_clues);
-        let problem = Problem::new(size, clues);
+        let problem = Problem::new(clues);
 
         match LineSolver::solve(&problem) {
             Ok(SolveResult::Unique(sol)) => Ok(sol.grid().to_vec()),
@@ -164,13 +144,13 @@ mod tests {
 
     #[test]
     fn test_1x1_filled() {
-        let grid = solve_puzzle(1, 1, vec![vec![1]], vec![vec![1]]).unwrap();
+        let grid = solve_puzzle(vec![vec![1]], vec![vec![1]]).unwrap();
         assert_eq!(grid, vec![vec![true]]);
     }
 
     #[test]
     fn test_1x1_empty() {
-        let grid = solve_puzzle(1, 1, vec![vec![0]], vec![vec![0]]).unwrap();
+        let grid = solve_puzzle(vec![vec![0]], vec![vec![0]]).unwrap();
         assert_eq!(grid, vec![vec![false]]);
     }
 
@@ -185,7 +165,7 @@ mod tests {
         let row_clues = vec![vec![5], vec![1, 1], vec![1, 1], vec![1, 1], vec![5]];
         let col_clues = vec![vec![5], vec![1, 1], vec![1, 1], vec![1, 1], vec![5]];
 
-        let grid = solve_puzzle(5, 5, row_clues, col_clues).unwrap();
+        let grid = solve_puzzle(row_clues, col_clues).unwrap();
 
         let expected = vec![
             vec![true, true, true, true, true],
@@ -208,7 +188,7 @@ mod tests {
         let row_clues = vec![vec![1], vec![1], vec![1], vec![1], vec![1]];
         let col_clues = vec![vec![1], vec![1], vec![1], vec![1], vec![1]];
 
-        let grid = solve_puzzle(5, 5, row_clues, col_clues).unwrap();
+        let grid = solve_puzzle(row_clues, col_clues).unwrap();
 
         // Should find *a* solution (there are multiple valid ones, but we just verify it's valid)
         // Each row should have exactly 1 filled cell
@@ -224,7 +204,7 @@ mod tests {
     #[test]
     fn test_no_solution() {
         // Contradictory: row says all filled, col says all empty
-        let result = solve_puzzle(2, 1, vec![vec![2]], vec![vec![0], vec![0]]);
+        let result = solve_puzzle(vec![vec![2]], vec![vec![0], vec![0]]);
         assert!(result.is_err() || result.unwrap_err().contains("no solution"));
     }
 
@@ -236,7 +216,7 @@ mod tests {
         let row_clues = vec![vec![1, 1], vec![1], vec![1, 1]];
         let col_clues = vec![vec![1, 1], vec![1], vec![1, 1]];
 
-        let grid = solve_puzzle(3, 3, row_clues, col_clues).unwrap();
+        let grid = solve_puzzle(row_clues, col_clues).unwrap();
 
         let expected = vec![
             vec![true, false, true],
@@ -247,12 +227,10 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_clue_dimensions() {
-        let size = Size::new(3, 3);
-        let clues = Clues::new(vec![vec![1]], vec![vec![1], vec![1], vec![1]]); // Only 1 row clue for 3 rows
-        let problem = Problem::new(size, clues);
-
-        let result = LineSolver::solve(&problem);
+    fn test_mismatched_clue_dimensions() {
+        // 1 row clue but 3 col clues — grid will be 1×3, which is valid.
+        // Instead test that a puzzle with contradictory clues yields no solution.
+        let result = solve_puzzle(vec![vec![3]], vec![vec![0], vec![0], vec![0]]);
         assert!(result.is_err());
     }
 }

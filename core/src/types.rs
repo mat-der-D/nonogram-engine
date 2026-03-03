@@ -1,40 +1,15 @@
 #[derive(Debug, Clone)]
 pub struct Problem {
-    size: Size,
     clues: Clues,
 }
 
 impl Problem {
-    pub fn new(size: Size, clues: Clues) -> Self {
-        Self { size, clues }
-    }
-
-    pub fn size(&self) -> Size {
-        self.size
+    pub fn new(clues: Clues) -> Self {
+        Self { clues }
     }
 
     pub fn clues(&self) -> &Clues {
         &self.clues
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Size {
-    width: usize,
-    height: usize,
-}
-
-impl Size {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height }
-    }
-
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.height
     }
 }
 
@@ -56,6 +31,14 @@ impl Clues {
     pub fn cols(&self) -> &[Vec<u8>] {
         &self.col
     }
+
+    pub fn height(&self) -> usize {
+        self.row.len()
+    }
+
+    pub fn width(&self) -> usize {
+        self.col.len()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -67,20 +50,23 @@ pub enum SolveResult {
 
 #[derive(Debug, Clone)]
 pub struct Solution {
-    size: Size,
     grid: Vec<Vec<bool>>,
 }
 
 impl Solution {
-    pub fn new(size: Size, grid: Vec<Vec<bool>>) -> Self {
-        Self { size, grid }
-    }
-
-    pub fn size(&self) -> Size {
-        self.size
+    pub fn new(grid: Vec<Vec<bool>>) -> Self {
+        Self { grid }
     }
 
     pub fn grid(&self) -> &[Vec<bool>] {
         &self.grid
+    }
+
+    pub fn height(&self) -> usize {
+        self.grid.len()
+    }
+
+    pub fn width(&self) -> usize {
+        self.grid.first().map_or(0, |row| row.len())
     }
 }
