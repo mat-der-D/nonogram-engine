@@ -95,22 +95,24 @@ All solver implementations implement this trait. New solvers can be added indepe
 
 ### 3.3 Implemented Solvers
 
-#### Phase 1: Line Solver (`LineSolver`)
+#### Phase 1: Constraint Propagation (`LinePropagator`) — internal component
 
+- Crate-internal component; does NOT implement the `Solver` trait
 - Applies constraint propagation row-by-row and column-by-column using dynamic programming
 - Complexity: O(k × l) per line, where k = number of blocks, l = line length
 - Iterates until a fixpoint is reached
 - Cannot solve all puzzles; may return partial state
 
-#### Phase 2: Backtracking Solver (`BacktrackingSolver`)
+#### Phase 2: CSP Solver (`CspSolver`)
 
-- Extends line solving with depth-first search
-- When line solving reaches a fixpoint with undetermined cells, selects a cell to guess using the MRV (Minimum Remaining Values) heuristic
+- Implements the `Solver` trait; the baseline complete solver
+- Uses `LinePropagator` for constraint propagation, then exhaustively explores branches with backtracking via the shared `Backtracker` component
+- When constraint propagation reaches a fixpoint with undetermined cells, selects a cell to guess using the MRV (Minimum Remaining Values) heuristic
 - Backtracks on contradiction
 - Solves the vast majority of well-formed nonograms
 - Worst case: exponential; practical performance is good due to strong propagation
 
-For shared logic (state snapshot/rollback, grid cloning, contradiction detection), common utilities are abstracted in an internal module and reused across solvers.
+Shared internal components (`LinePropagator`, `Backtracker`) provide constraint propagation, state snapshot/rollback, grid cloning, and contradiction detection. These are reused across all solvers.
 
 #### Phase 3: Probing Solver (`ProbingSolver`) — optional, advanced
 
@@ -231,7 +233,7 @@ The React frontend calls this function synchronously via the WASM bindings.
 
 ```
 # Solve a puzzle
-nonogram-cli solve --input puzzle.json [--solver line|backtracking|probing]
+nonogram-cli solve --input puzzle.json [--solver csp|probing]
 
 # Generate a problem template
 nonogram-cli template --rows <N> --cols <M> --output template.json
@@ -240,7 +242,7 @@ nonogram-cli template --rows <N> --cols <M> --output template.json
 nonogram-cli --help
 ```
 
-- Default solver: `backtracking`
+- Default solver: `csp`
 - Input: problem JSON file (or stdin)
 - Output: solution JSON to stdout
 
@@ -301,7 +303,7 @@ Triggered on version tags (`v*`).
 | # | Topic | Decision |
 |---|-------|----------|
 | 1 | Solver algorithms (simple) | Line solving (DP, O(k×l) per line) |
-| 2 | Solver algorithms (advanced) | Backtracking + Constraint Propagation; Probing as optional Phase 3 |
+| 2 | Solver algorithms (advanced) | CSP approach (`CspSolver`); Probing (`ProbingSolver`) as optional Phase 3 |
 | 3 | Nonogram type | Binary (black & white) only |
 | 4 | JSON format — problem | `row_clues` + `col_clues` only; width/height derived from array lengths |
 | 5 | JSON format — solution | `status` (`none`/`unique`/`multiple`) + `solutions` (0, 1, or 2 grids) |
@@ -310,3 +312,6 @@ Triggered on version tags (`v*`).
 | 8 | Workspace layout | `crates/` (core, format, wasm) + `apps/` (cli, desktop, web) |
 | 9 | Development methodology | cc-sdd (Spec-Driven Development) |
 | 10 | CI/CD | GitHub Actions: fmt, clippy, test, WASM build, web build, release automation, coverage |
+| 11 | Naming conventions | `...Solver` suffix reserved for public `Solver` trait implementors; internal components use descriptive names (`LinePropagator`, `Backtracker`); see `docs/naming-conventions.md` |
+| 12 | Cell states | `Unknown` / `Filled` / `Blank` (`Blank` over `Empty` for symmetry with `Filled`) |
+| 13 | SolveResult variants | `NoSolution` / `UniqueSolution(Grid)` / `MultipleSolutions(Vec<Grid>)` |

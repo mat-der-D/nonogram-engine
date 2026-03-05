@@ -6,9 +6,10 @@
 
 **設計思想の前提**:
 
-- `Solver` トレイトは「入口のパズルから最終解答まで完全に求解する実体」を表す。部分解を返すことは許されない。
-- 制約伝播（行列単位の確定マス計算）はすべての完全ソルバが内部で利用する共通処理であり、`Solver` トレイトを実装しない独立した内部コンポーネントとして分離する。
-- バックトラッキング（網羅的探索）は、解が確定しない限りあらゆる完全ソルバが最終フェーズとして必ず行う普遍的な手法であり、特定ソルバの名前に使うべきではない。
+- `Solver` トレイトは「入口のパズルから最終解答まで完全に求解する実体」を表す。部分解を返すことは許されない。`...Solver` サフィックスは `Solver` トレイトを実装する公開型にのみ使用する。
+- 制約伝播（行列単位の確定マス計算）はすべての完全ソルバが内部で利用する共通処理であり、`Solver` トレイトを実装しない独立した内部コンポーネント（`LinePropagator`）として分離する。
+- バックトラッキング（網羅的探索）は、解が確定しない限りあらゆる完全ソルバが最終フェーズとして必ず行う普遍的な手法であり、特定ソルバの名前に使うべきではない。バックトラッキングも共通内部コンポーネント（`Backtracker`）として分離する。
+- 命名規則の詳細は `docs/naming-conventions.md` を参照すること。
 
 ---
 
@@ -20,7 +21,7 @@
 
 #### 受入基準
 
-1. The nonogram-core shall provide a `Grid` type that represents an M×N board where each cell holds one of three states: `Unknown`, `Filled`, or `Empty`.
+1. The nonogram-core shall provide a `Grid` type that represents an M×N board where each cell holds one of three states: `Unknown`, `Filled`, or `Blank`.
 2. The nonogram-core shall provide a `Clue` type that represents an ordered sequence of one or more positive-integer block lengths for a single row or column.
 3. The nonogram-core shall provide a `Puzzle` type that aggregates a `Grid`, a list of row `Clue`s, and a list of column `Clue`s.
 4. If ノノグラムパズルの行数・列数・クルーリスト長が不整合である場合、the nonogram-core shall return an error when constructing a `Puzzle`.
@@ -35,40 +36,40 @@
 #### 受入基準
 
 1. The nonogram-core shall define a `Solver` trait with a method `solve(puzzle: &Puzzle) -> SolveResult`.
-2. The nonogram-core shall define a `SolveResult` type that represents exactly one of three outcomes: `Solved(Grid)` (唯一解)、`MultipleSolutions(Grid, Grid)` (複数解の代表例2件)、`NoSolution` (解なし).
+2. The nonogram-core shall define a `SolveResult` type that represents exactly one of three outcomes: `UniqueSolution(Grid)` (唯一解)、`MultipleSolutions(Vec<Grid>)` (複数解の代表例)、`NoSolution` (解なし).
 3. When a type implements `Solver`, the nonogram-core shall guarantee that `solve` always returns a complete `SolveResult` and never returns a grid containing `Unknown` cells as a solution.
 4. The nonogram-core shall allow any type implementing `Solver` to be used interchangeably via trait objects (`dyn Solver`).
 5. The nonogram-core shall document all public items of the `Solver` trait and `SolveResult` type in American English.
 
 ---
 
-### 要件 3: 制約伝播コンポーネント（LineSolver）
+### 要件 3: 制約伝播コンポーネント（LinePropagator）
 
 **目的:** ソルバ開発者として、各行・各列を独立して解析する制約伝播を利用したい。これにより、確定マスを効率よく埋め、後段の網羅的探索コストを削減できるようにするため。
 
 #### 受入基準
 
-1. The nonogram-core shall provide a `LineSolver` as a crate-internal component (not public API) that does NOT implement the `Solver` trait.
-2. When a line（行または列）and its clue are given, the nonogram-core shall compute the intersection of all valid arrangements and mark cells that are `Filled` or `Empty` in every valid arrangement as definite.
+1. The nonogram-core shall provide a `LinePropagator` as a crate-internal component (not public API) that does NOT implement the `Solver` trait.
+2. When a line（行または列）and its clue are given, the nonogram-core shall compute the intersection of all valid arrangements and mark cells that are `Filled` or `Blank` in every valid arrangement as definite.
 3. While applying constraint propagation, the nonogram-core shall continue iterating across all rows and columns until a complete pass yields no newly determined cells.
 4. If 制約伝播中に有効な配置が0件となる矛盾が検出された場合、the nonogram-core shall signal a contradiction to the calling solver component without returning a `SolveResult`.
 5. The nonogram-core shall complete one full constraint propagation pass on a 25×25 puzzle within 500 milliseconds in a single-threaded debug build.
 
 ---
 
-### 要件 4: StandardSolver（標準完全求解ソルバ）
+### 要件 4: CspSolver（CSP完全求解ソルバ）
 
 **目的:** ソルバ利用者として、あらゆるノノグラムパズルを完全に解いてほしい。これにより、解なし・唯一解・複数解を正確に判定できるようにするため。
 
 #### 受入基準
 
-1. The nonogram-core shall provide a `StandardSolver` that implements the `Solver` trait and fully solves any given puzzle.
-2. When `StandardSolver` begins solving, the nonogram-core shall first apply constraint propagation to reduce the search space.
-3. If 制約伝播後に `Unknown` セルが残る場合、the nonogram-core shall exhaustively explore branches by hypothesizing `Filled` and `Empty` for each undetermined cell in turn.
+1. The nonogram-core shall provide a `CspSolver` that implements the `Solver` trait and fully solves any given puzzle.
+2. When `CspSolver` begins solving, the nonogram-core shall first apply constraint propagation to reduce the search space.
+3. If 制約伝播後に `Unknown` セルが残る場合、the nonogram-core shall exhaustively explore branches by hypothesizing `Filled` and `Blank` for each undetermined cell in turn.
 4. If 分岐が矛盾に至る場合、the nonogram-core shall backtrack and try the alternative hypothesis.
-5. When `StandardSolver` finds a second distinct solution, the nonogram-core shall immediately halt the search and return `MultipleSolutions(solution1, solution2)`.
-6. If `StandardSolver` exhausts all branches without finding a solution, the nonogram-core shall return `NoSolution`.
-7. When `StandardSolver` finds exactly one solution, the nonogram-core shall return `Solved(Grid)`.
+5. When `CspSolver` finds a second distinct solution, the nonogram-core shall immediately halt the search and return `MultipleSolutions`.
+6. If `CspSolver` exhausts all branches without finding a solution, the nonogram-core shall return `NoSolution`.
+7. When `CspSolver` finds exactly one solution, the nonogram-core shall return `UniqueSolution(Grid)`.
 
 ---
 
@@ -79,7 +80,7 @@
 #### 受入基準
 
 1. Where ProbingSolver is included, the nonogram-core shall provide a `ProbingSolver` that implements the `Solver` trait and fully solves any given puzzle.
-2. Where ProbingSolver is included, the nonogram-core shall first apply constraint propagation, then for each `Unknown` cell tentatively assign `Filled` and `Empty`, run constraint propagation on each hypothesis, and commit any cell value that is identical in both outcomes.
+2. Where ProbingSolver is included, the nonogram-core shall first apply constraint propagation, then for each `Unknown` cell tentatively assign `Filled` and `Blank`, run constraint propagation on each hypothesis, and commit any cell value that is identical in both outcomes.
 3. Where ProbingSolver is included, while プロービングで新たに確定するセルが存在する間, the nonogram-core shall continue the probing phase before proceeding to exhaustive search.
 4. Where ProbingSolver is included, if プロービングで進展がなくなった場合, the nonogram-core shall proceed to exhaustive branch-and-backtrack search internally to complete the solution.
 5. Where ProbingSolver is included, the nonogram-core shall return a `SolveResult` that reflects the complete search outcome (唯一解 / 複数解 / 解なし).
