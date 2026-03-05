@@ -273,7 +273,7 @@ Triggered on every pull request and push to `main`.
 | `clippy` | `cargo clippy -- -D warnings` |
 | `test` | `cargo test --workspace` |
 | `build-wasm` | `wasm-pack build crates/nonogram-wasm` |
-| `build-web` | `cd apps/web && npm ci && npm run build` |
+| `build-web` | `cd apps/web && bun install && bun run build` |
 | `build-cli` | `cargo build -p nonogram-cli --release` |
 
 ### 7.2 Release Automation (`.github/workflows/release.yml`)
