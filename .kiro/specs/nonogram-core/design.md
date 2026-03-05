@@ -376,6 +376,7 @@ impl Puzzle {
     /// Creates a new puzzle from row and column clues.
     ///
     /// # Errors
+    /// - `Error::EmptyClueList` if either `row_clues` or `col_clues` is empty.
     /// - `Error::ClueExceedsLength` if any clue's minimum length exceeds
     ///   the corresponding line length.
     pub fn new(row_clues: Vec<Clue>, col_clues: Vec<Clue>) -> Result<Self, Error>;
@@ -394,7 +395,7 @@ impl Puzzle {
 }
 ```
 
-- 前提条件: `row_clues` と `col_clues` は非空（0×N, M×0 パズルはエラー）
+- 前提条件: `row_clues` と `col_clues` は非空（空の場合は `Error::EmptyClueList`）
 - 事後条件: `height()` = `row_clues.len()`, `width()` = `col_clues.len()`
 - 不変条件: すべての行クルーの `min_length()` ≤ `width()`, すべての列クルーの `min_length()` ≤ `height()`
 
@@ -429,6 +430,8 @@ pub enum Error {
         clue_min_length: usize,
         line_length: usize,
     },
+    /// An empty clue list was provided (0×N or M×0 puzzle).
+    EmptyClueList,
 }
 
 impl std::fmt::Display for Error { /* ... */ }
@@ -566,21 +569,18 @@ pub(crate) struct Backtracker;
 impl Backtracker {
     /// Performs exhaustive search on the given grid.
     ///
-    /// Collects solutions into `solutions`. Stops early when
-    /// `solutions.len() >= max_solutions`.
-    ///
-    /// Returns `Ok(())` on normal completion or early stop.
+    /// Returns a vector of discovered solutions, containing at most
+    /// `max_solutions` elements. Stops early once the limit is reached.
     pub(crate) fn search(
         grid: &Grid,
         puzzle: &Puzzle,
-        solutions: &mut Vec<Grid>,
         max_solutions: usize,
-    ) -> Result<(), Contradiction>;
+    ) -> Vec<Grid>;
 }
 ```
 
 - 前提条件: `grid` は制約伝播済みの状態（Unknown セルが残存する可能性あり）
-- 事後条件: `solutions` に発見された解が追加される。各解に `Unknown` セルは含まれない
+- 事後条件: 返却されたベクタの各 Grid に `Unknown` セルは含まれない。解なしの場合は空ベクタ
 - 不変条件: `max_solutions` に達した時点で探索を停止
 
 **実装メモ**
@@ -621,7 +621,7 @@ impl Solver for CspSolver {
 ```
 
 **実装メモ**
-- `solve` の手順: (1) 全 Unknown の Grid 生成 → (2) `LinePropagator::propagate` → (3) 完全ならば `UniqueSolution` → (4) 矛盾ならば `NoSolution` → (5) Unknown 残存ならば `Backtracker::search(max_solutions=2)` → (6) 解数に応じて `SolveResult` を返す
+- `solve` の手順: (1) 全 Unknown の Grid 生成 → (2) `LinePropagator::propagate` → (3) 完全ならば `UniqueSolution` → (4) 矛盾ならば `NoSolution` → (5) Unknown 残存ならば `let solutions = Backtracker::search(max_solutions=2)` → (6) `solutions.len()` に応じて `SolveResult` を返す
 
 #### ProbingSolver
 
@@ -809,6 +809,7 @@ classDiagram
 | カテゴリ | 型 | バリアント | 発生場所 | 対応 |
 |---|---|---|---|---|
 | 構築エラー | `Error` | `InvalidBlockLength` | `Clue::new` | ゼロ値のブロック長を検出 |
+| 構築エラー | `Error` | `EmptyClueList` | `Puzzle::new` | 行/列クルーリストが空 |
 | 構築エラー | `Error` | `ClueExceedsLength` | `Puzzle::new` | クルーの最小長が行/列長を超過 |
 | 検証エラー | `ValidationError` | `DimensionMismatch` | `validate` | Grid と Puzzle のサイズ不一致 |
 | 検証エラー | `ValidationError` | `ContainsUnknown` | `validate` | Grid に Unknown セル含有 |
