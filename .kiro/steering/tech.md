@@ -26,6 +26,43 @@ Cargo workspaceによる単一リポジトリ。Rustライブラリ層とTypeScr
 - 各ソルバは `Solver` トレイトを実装する
 - テストカバレッジ目標: `nonogram-core` ≥ 80%（cargo-llvm-cov）
 
+#### モジュール構成（mod.rs を使わない方法）
+
+**古い方法（非推奨）**:
+```
+src/
+  solver/
+    mod.rs       ← 避ける
+    line.rs
+    cell.rs
+```
+
+**現代の方法（推奨）**:
+```
+src/
+  solver.rs      ← モジュールのエントリポイント（mod.rs の代わり）
+  solver/
+    line.rs
+    cell.rs
+```
+
+`solver.rs` の中でサブモジュールを宣言する:
+```rust
+// src/solver.rs
+pub mod line;
+pub mod cell;
+```
+
+**AIが間違えやすいパターン**:
+
+| ❌ 間違い | ✅ 正しい |
+|---|---|
+| `src/solver/mod.rs` を作る | `src/solver.rs` を作る |
+| ディレクトリ内に `mod.rs` を置く | ディレクトリと同名の `.rs` ファイルをその親に置く |
+| `src/lib.rs` + `src/solver/mod.rs` | `src/lib.rs` + `src/solver.rs` + `src/solver/` |
+
+`mod.rs` 方式はRust 2018以降は非推奨。新規ファイル作成時は必ず `モジュール名.rs` + 同名ディレクトリの構成を使うこと。
+
 ### TypeScript
 - TypeScript strict mode
 - ESLintによる静的解析（`apps/web`）
