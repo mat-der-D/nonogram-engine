@@ -136,8 +136,15 @@ flowchart TD
     CheckDone -->|矛盾| NoSol[NoSolution]
     CheckDone -->|Unknown 残存| ProbeLoop[プロービングフェーズ]
     ProbeLoop --> SelectProbe[Unknown セルを選択]
-    SelectProbe --> TryBoth[Filled/Blank 両方を仮定し制約伝播]
-    TryBoth --> Compare{両結果で共通する確定セル?}
+    SelectProbe --> TryFilled[Filled を仮定して制約伝播]
+    TryFilled --> FilledResult{結果}
+    FilledResult -->|矛盾| ForceBlank[Blank を確定してメイングリッドに適用]
+    FilledResult -->|有効| TryBlank[Blank を仮定して制約伝播]
+    TryBlank --> BlankResult{結果}
+    BlankResult -->|矛盾| ForceFilled[Filled を確定してメイングリッドに適用]
+    BlankResult -->|有効| Compare{両結果で共通する確定セル?}
+    ForceBlank --> Propagate
+    ForceFilled --> Propagate
     Compare -->|あり| Commit[共通セルを確定]
     Commit --> Propagate
     Compare -->|なし| NextCell[次の Unknown セルへ]
@@ -655,7 +662,8 @@ impl Solver for ProbingSolver {
 ```
 
 **実装メモ**
-- プロービングの手順: (1) Unknown セルを走査 → (2) Filled を仮定して制約伝播 → (3) Blank を仮定して制約伝播 → (4) 両結果で同一値のセルを確定 → (5) 確定セルがある限り反復 → (6) 進展なしならバックトラッキングに移行
+- プロービングの手順: (1) Unknown セルを走査 → (2) Filled を仮定して制約伝播を実行 → (3) Blank を仮定して制約伝播を実行 → (4) 一方の仮定が矛盾（`Contradiction`）した場合は他方の値をメイングリッドに確定し直ちに `LinePropagator::propagate` を再実行 → (5) 両仮定とも有効な場合は同一値を持つセルを確定 → (6) 確定セルがある限り反復 → (7) 進展なしならバックトラッキングに移行
+- 片側矛盾の重要性: Filled が矛盾 → そのセルは必ず Blank（強制代入）。Blank が矛盾 → そのセルは必ず Filled（強制代入）。この処理を省略すると Backtracker への不要なフォールバックが発生し ProbingSolver の効果が失われる
 
 ### 公開関数
 
@@ -852,8 +860,8 @@ crates/nonogram-core/src/
   grid.rs             # Grid 型
   clue.rs             # Clue 型
   puzzle.rs           # Puzzle 型
-  error.rs            # Error enum
-  validate.rs         # validate 関数
+  error.rs            # Error enum, ValidationError enum
+  validation.rs       # validate 関数（モジュール名と関数名の衝突を避けるため validation に命名）
   solver.rs           # Solver trait, SolveResult, サブモジュール宣言
   solver/
     csp.rs            # CspSolver
@@ -871,7 +879,7 @@ pub mod puzzle;
 pub mod error;
 pub mod solver;
 
-mod validate;    // モジュールは非公開
+mod validation;  // モジュールは非公開（関数名 `validate` とのスコープ衝突を避けるため `validation` に命名）
 mod propagator;  // pub(crate)
 mod backtracker; // pub(crate)
 
@@ -883,5 +891,7 @@ pub use error::{Error, ValidationError};
 pub use solver::{Solver, SolveResult};
 pub use solver::csp::CspSolver;
 pub use solver::probing::ProbingSolver;
-pub use validate::validate;
+pub use validation::validate;
 ```
+
+> **設計メモ**: `validate.rs` ではなく `validation.rs` を採用する理由は、`mod validate;` と `pub use validate::validate;` が同一スコープに共存すると識別子 `validate` が Rust コンパイラ内で二義的になり、警告や予期しない名前解決が生じる可能性があるため（要件 8.4 「警告なしコンパイル」）。`validation` モジュール名により公開関数 `validate` との衝突を回避する。
