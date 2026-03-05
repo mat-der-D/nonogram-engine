@@ -532,6 +532,7 @@ pub(crate) struct Contradiction;
 ```
 
 - 前提条件: `line.len()` はクルーに対応する行/列の長さと一致
+- 前提条件: `line` 内の `Filled`/`Blank` セルは固定済みの確定値として扱われ、有効配置はこれらと矛盾しないもののみを対象とする（`Unknown` セルのみが配置の自由度を持つ）
 - 事後条件: 返却されたセル列で `Filled`/`Blank` のセルは全有効配置で共通
 - 不変条件: `propagate` はフィックスポイントに到達するまで反復
 
@@ -869,8 +870,8 @@ pub mod clue;
 pub mod puzzle;
 pub mod error;
 pub mod solver;
-pub mod validate;
 
+mod validate;    // モジュールは非公開
 mod propagator;  // pub(crate)
 mod backtracker; // pub(crate)
 
@@ -880,5 +881,7 @@ pub use clue::Clue;
 pub use puzzle::Puzzle;
 pub use error::{Error, ValidationError};
 pub use solver::{Solver, SolveResult};
+pub use solver::csp::CspSolver;
+pub use solver::probing::ProbingSolver;
 pub use validate::validate;
 ```
