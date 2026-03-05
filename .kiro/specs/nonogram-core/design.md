@@ -93,28 +93,18 @@ graph TB
 
 ### CspSolver 求解フロー
 
+CspSolver は `LinePropagator` と `Backtracker` を呼び出すオーケストレーターとして機能する。
+
 ```mermaid
 flowchart TD
     Start[solve が呼ばれる] --> InitGrid[Grid を全 Unknown で初期化]
-    InitGrid --> Propagate[LinePropagator で制約伝播]
+    InitGrid --> Propagate[LinePropagator::propagate を実行]
     Propagate --> CheckContradiction{矛盾検出?}
     CheckContradiction -->|Yes| NoSolution[NoSolution を返す]
     CheckContradiction -->|No| CheckComplete{全セル確定?}
     CheckComplete -->|Yes| ReturnUnique[UniqueSolution を返す]
-    CheckComplete -->|No| Backtrack[Backtracker で探索]
-    Backtrack --> SelectCell[MRV でセル選択]
-    SelectCell --> TryFilled[Filled を仮定]
-    TryFilled --> PropagateH[制約伝播]
-    PropagateH --> CheckH{矛盾?}
-    CheckH -->|No| RecurseH[再帰的に探索]
-    CheckH -->|Yes| TryBlank[Blank を仮定]
-    TryBlank --> PropagateB[制約伝播]
-    PropagateB --> CheckB{矛盾?}
-    CheckB -->|No| RecurseB[再帰的に探索]
-    CheckB -->|Yes| BacktrackUp[親に矛盾を通知]
-    RecurseH --> CollectSolutions[解を収集]
-    RecurseB --> CollectSolutions
-    CollectSolutions --> CheckCount{解の数}
+    CheckComplete -->|No| Search[Backtracker::search を呼び出し max_solutions=2]
+    Search --> CheckCount{返却された解の数}
     CheckCount -->|0| NoSolution
     CheckCount -->|1| ReturnUnique
     CheckCount -->|2以上| ReturnMultiple[MultipleSolutions を返す]
@@ -122,8 +112,32 @@ flowchart TD
 
 **主要な判断ポイント**:
 - 制約伝播でフィックスポイントに到達した後に完全性を判定
-- バックトラッキングは2件目の解を発見した時点で即座に打ち切り
-- MRV ヒューリスティックにより最も制約の強いセルを優先選択
+- バックトラッキングは `max_solutions=2` で呼び出し、2件目の解を発見した時点で即座に打ち切り
+
+### Backtracker 内部探索フロー
+
+```mermaid
+flowchart TD
+    Enter[search が呼ばれる] --> CheckUnknown{Unknown セルあり?}
+    CheckUnknown -->|No| ReturnSolution[現グリッドを解として追加]
+    CheckUnknown -->|Yes| SelectCell[degree ヒューリスティックでセル選択]
+    SelectCell --> TryFilled[Filled を仮定: Grid をクローンしてセル設定]
+    TryFilled --> PropagateH[LinePropagator::propagate]
+    PropagateH --> CheckH{矛盾?}
+    CheckH -->|No| RecurseH[再帰的に search を呼び出し]
+    CheckH -->|Yes| SkipFilled[Filled 枝をスキップ]
+    RecurseH --> TryBlank
+    SkipFilled --> TryBlank[Blank を仮定: Grid をクローンしてセル設定]
+    TryBlank --> PropagateB[LinePropagator::propagate]
+    PropagateB --> CheckB{矛盾?}
+    CheckB -->|No| RecurseB[再帰的に search を呼び出し]
+    CheckB -->|Yes| SkipBlank[Blank 枝をスキップ]
+    RecurseB --> Collect[収集した解を結合]
+    SkipBlank --> Collect
+    Collect --> CheckLimit{max_solutions 達成?}
+    CheckLimit -->|Yes| EarlyReturn[早期停止して返す]
+    CheckLimit -->|No| ReturnAll[収集済み解を返す]
+```
 
 ### ProbingSolver 求解フロー
 
@@ -179,7 +193,7 @@ flowchart TD
 | 3.5 | 25×25 で 500ms 以内 | LinePropagator | — | — |
 | 4.1 | CspSolver（Solver 実装） | CspSolver | solve | CspSolver フロー |
 | 4.2 | 制約伝播を先行実行 | CspSolver, LinePropagator | — | CspSolver フロー |
-| 4.3 | MRV による未確定セル選択 | Backtracker | select_cell | CspSolver フロー |
+| 4.3 | MRV による未確定セル選択 | Backtracker | search（degree ヒューリスティックは search 内部実装） | CspSolver フロー |
 | 4.4 | 矛盾時のバックトラック | Backtracker | search | CspSolver フロー |
 | 4.5 | 2件目の解で探索停止 | Backtracker | search | CspSolver フロー |
 | 4.6 | 全分岐探索後に NoSolution | CspSolver, Backtracker | — | CspSolver フロー |
@@ -190,7 +204,7 @@ flowchart TD
 | 4a.4 | 制約伝播との協調 | Backtracker, LinePropagator | — | CspSolver フロー |
 | 4a.5 | 2件目の解で早期停止 | Backtracker | search | CspSolver フロー |
 | 5.1 | ProbingSolver（Solver 実装） | ProbingSolver | solve | ProbingSolver フロー |
-| 5.2 | 両仮定で共通するセルを確定 | ProbingSolver | probe | ProbingSolver フロー |
+| 5.2 | 両仮定で共通するセルを確定 | ProbingSolver | solve（probe は solve 内部処理） | ProbingSolver フロー |
 | 5.3 | プロービング反復 | ProbingSolver | — | ProbingSolver フロー |
 | 5.4 | 進展なし時にバックトラッキング移行 | ProbingSolver, Backtracker | — | ProbingSolver フロー |
 | 5.5 | 完全な SolveResult 返却 | ProbingSolver | solve | ProbingSolver フロー |
@@ -298,9 +312,15 @@ impl Grid {
     pub fn width(&self) -> usize;
 
     /// Returns a reference to the specified row.
+    ///
+    /// # Panics
+    /// Panics if `index >= height`.
     pub fn row(&self, index: usize) -> &[Cell];
 
     /// Returns a copy of the specified column as a `Vec<Cell>`.
+    ///
+    /// # Panics
+    /// Panics if `index >= width`.
     pub fn col(&self, index: usize) -> Vec<Cell>;
 
     /// Returns `true` if no cell is `Unknown`.
@@ -365,7 +385,9 @@ impl Clue {
 
 **責務と制約**
 - 盤面サイズは行クルー数 × 列クルー数で導出
-- 構築時にクルーの整合性を検証（DimensionMismatch, ClueExceedsLength）
+- 構築時にクルーの整合性を検証（EmptyClueList, ClueExceedsLength）
+
+> **要件 1.5 の充足について**: 要件 1.5「不整合次元でエラー」は `Puzzle::new(row_clues, col_clues)` の API 設計において構造的に充足される。height = `row_clues.len()`、width = `col_clues.len()` と直接導出されるため、次元とクルーリスト長の不整合は発生しない。EmptyClueList（空リストによる 0 次元パズル）がこの要件の実質的なエラーケースとなる。
 
 **依存**
 - Outbound: Clue — ブロック情報の保持 (P0)
@@ -376,7 +398,7 @@ impl Clue {
 ##### Service Interface
 
 ```rust
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Puzzle { /* fields private */ }
 
 impl Puzzle {
@@ -464,7 +486,7 @@ impl std::error::Error for Error {}
 
 ```rust
 /// The result of solving a nonogram puzzle.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SolveResult {
     /// No valid solution exists.
     NoSolution,
@@ -544,7 +566,11 @@ pub(crate) struct Contradiction;
 - 不変条件: `propagate` はフィックスポイントに到達するまで反復
 
 **実装メモ**
-- `solve_line` の DP アルゴリズム: フォワードパスで各ブロックの「ここまでに配置可能か」を計算、バックワードパスで同様に計算。両パスの結果から各セル位置が全配置で共通する値を導出
+- `solve_line` の DP アルゴリズム:
+  - **フォワードパス**: 先頭から各ブロックを順に配置できるか計算。各位置で「ブロックをここから始められるか」を判定する際、対象セル範囲に固定 Blank（確定済み Blank）が含まれる場合は配置不可、ブロック直後に固定 Filled がある場合も不可（間隔が取れない）とする
+  - **バックワードパス**: 末尾から同様に計算
+  - **交差計算**: 両パスで「配置可能」とされた全配置の集合を求め、全配置で共通する値（すべての配置で Filled なら Filled、すべてで Blank なら Blank）を確定セルとして返す
+  - **固定セルの扱い**: `Unknown` セルのみが配置の自由度を持つ。既確定の `Filled`/`Blank` セルに矛盾する配置は除外される。フォワードパスで「固定 Blank 位置にブロックを重ねようとする」または「固定 Filled 位置を空白として扱う」配置は不可能とマークする
 - パフォーマンス: O(k × L) per line（k=ブロック数, L=行長）。25×25 パズルの全行/列反復でも数ms 以内
 
 #### Backtracker
@@ -592,7 +618,7 @@ impl Backtracker {
 - 不変条件: `max_solutions` に達した時点で探索を停止
 
 **実装メモ**
-- MRV ヒューリスティック: 各 Unknown セルについて、そのセルを含む行と列の Unknown セル数の合計を計算し、最小値のセルを選択
+- セル選択ヒューリスティック（MRV 近似として degree ヒューリスティックを採用）: 完全な制約伝播後は全 Unknown セルが Filled/Blank のいずれも有効（残余値数 = 2）であるため、古典的 MRV では差がつかない。代わりに **degree ヒューリスティック** を採用する: 各 Unknown セルについて、そのセルを含む行と列の Unknown セル数の合計を計算し、最小値のセル（＝最も制約の強い行列に位置するセル）を選択する。これにより探索木を早期に刈り込むことができる
 - スナップショット: `Grid::clone()` で仮説前の状態を保存。矛盾時に復元
 - 各仮説（Filled/Blank）設定後に `LinePropagator::propagate()` を呼び出し
 
@@ -694,6 +720,7 @@ pub fn validate(puzzle: &Puzzle, grid: &Grid) -> Result<(), ValidationError>;
 
 - 前提条件: なし（すべての不正入力をエラーとして報告）
 - 事後条件: `Ok(())` はすべての行/列がクルーに完全一致することを保証
+- エラー評価順: `DimensionMismatch` → `ContainsUnknown` → `ClueMismatch`（複数条件が同時に成立する場合は先に評価された条件のエラーを返す）
 
 #### ValidationError
 
@@ -782,6 +809,7 @@ classDiagram
         <<enum>>
         InvalidBlockLength
         ClueExceedsLength
+        EmptyClueList
     }
 
     class ValidationError {
@@ -833,7 +861,7 @@ classDiagram
 - **Cell**: バリアント値の等価性、Clone/Copy/Debug 動作確認
 - **Grid**: 構築、get/set、行/列アクセス、境界チェック、is_complete
 - **Clue**: 空クルー、単一ブロック、複数ブロック、min_length 計算、ゼロブロック長エラー
-- **Puzzle**: 正常構築、DimensionMismatch エラー、ClueExceedsLength エラー
+- **Puzzle**: 正常構築、EmptyClueList エラー（行または列クルーリストが空）、ClueExceedsLength エラー
 - **Error**: Display 出力の検証
 - **LinePropagator::solve_line**: 全 Filled 行、全 Blank 行、部分確定行、矛盾行
 - **LinePropagator::propagate**: 小パズルでフィックスポイント到達確認、矛盾パズルの検出
@@ -872,12 +900,12 @@ crates/nonogram-core/src/
 
 `lib.rs` での re-export:
 ```rust
-pub mod cell;
-pub mod grid;
-pub mod clue;
-pub mod puzzle;
-pub mod error;
-pub mod solver;
+mod cell;
+mod grid;
+mod clue;
+mod puzzle;
+mod error;
+mod solver;
 
 mod validation;  // モジュールは非公開（関数名 `validate` とのスコープ衝突を避けるため `validation` に命名）
 mod propagator;  // pub(crate)
