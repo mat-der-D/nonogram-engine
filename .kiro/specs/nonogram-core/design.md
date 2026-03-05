@@ -31,7 +31,7 @@
 **選択パターン**: レイヤードアーキテクチャ（データ型層 → 内部コンポーネント層 → ソルバ層 → 公開 API 層）
 
 **ドメイン境界**:
-- **公開 API**: `Cell`, `Grid`, `Clue`, `Puzzle`, `Solver`, `SolveResult`, `Error`, `validate`
+- **公開 API**: `Cell`, `Grid`, `Clue`, `Puzzle`, `Solver`, `SolveResult`, `Error`, `ValidationError`, `validate`
 - **内部コンポーネント**: `LinePropagator`, `Backtracker`（`pub(crate)` で非公開）
 - **ソルバ実装**: `CspSolver`, `ProbingSolver`（公開、`Solver` トレイト実装）
 
@@ -51,6 +51,7 @@ graph TB
         Clue[Clue]
         Puzzle[Puzzle]
         Error[Error]
+        ValidationError[ValidationError]
     end
 
     subgraph Solvers[ソルバ実装]
@@ -76,6 +77,7 @@ graph TB
     LinePropagator --> Clue
     Validate --> Puzzle
     Validate --> Grid
+    Validate --> ValidationError
 ```
 
 ### Technology Stack
@@ -157,6 +159,7 @@ flowchart TD
 | 1.4 | Puzzle 型（行/列クルー集約） | Puzzle | Puzzle::new | — |
 | 1.5 | 不整合次元でエラー | Puzzle, Error | Puzzle::new → Error | — |
 | 1.6 | コア型に Clone, Debug 実装 | Cell, Grid, Clue, Puzzle | derive マクロ | — |
+| 1.7 | ゼロブロック長でエラー | Clue, Error | Clue::new → Error | — |
 | 2.1 | Solver トレイト定義 | Solver | solve メソッド | — |
 | 2.2 | SolveResult 型定義 | SolveResult | — | — |
 | 2.3 | solve は完全解のみ返す保証 | Solver, CspSolver, ProbingSolver | — | CspSolver フロー |
@@ -184,13 +187,16 @@ flowchart TD
 | 5.3 | プロービング反復 | ProbingSolver | — | ProbingSolver フロー |
 | 5.4 | 進展なし時にバックトラッキング移行 | ProbingSolver, Backtracker | — | ProbingSolver フロー |
 | 5.5 | 完全な SolveResult 返却 | ProbingSolver | solve | ProbingSolver フロー |
-| 6.1 | validate 関数 | validate | validate fn | — |
-| 6.2 | Unknown セル含有で false | validate | validate fn | — |
-| 6.3 | 公開 API として公開 | validate | pub fn | — |
+| 6.1 | validate 関数（Result 返却） | validate | validate fn | — |
+| 6.2 | サイズ不一致で DimensionMismatch | validate, ValidationError | validate fn | — |
+| 6.3 | Unknown セル含有で ContainsUnknown | validate, ValidationError | validate fn | — |
+| 6.4 | クルー不一致で ClueMismatch | validate, ValidationError | validate fn | — |
+| 6.5 | 公開 API として公開 | validate | pub fn | — |
 | 7.1 | Error enum 定義 | Error | — | — |
-| 7.2 | DimensionMismatch エラー | Error, Puzzle | Puzzle::new | — |
+| 7.2 | InvalidBlockLength エラー | Error, Clue | Clue::new | — |
 | 7.3 | ClueExceedsLength エラー | Error, Puzzle | Puzzle::new | — |
-| 7.4 | unwrap/expect 不使用 | 全モジュール | — | — |
+| 7.4 | ValidationError enum 定義 | ValidationError | — | — |
+| 7.5 | unwrap/expect 不使用 | 全モジュール | — | — |
 | 8.1 | nonogram-format 非依存 | Cargo.toml | — | — |
 | 8.2 | 行カバレッジ ≥ 80% | テスト全体 | — | — |
 | 8.3 | #[cfg(test)] 内の単体テスト | 各ソースファイル | — | — |
@@ -203,16 +209,17 @@ flowchart TD
 |---|---|---|---|---|---|
 | Cell | データ型 | セル状態の表現 | 1.1, 1.6 | — | — |
 | Grid | データ型 | M×N 盤面の管理 | 1.2, 1.6 | Cell | Service |
-| Clue | データ型 | 行/列のヒント表現 | 1.3, 1.6 | — | Service |
+| Clue | データ型 | 行/列のヒント表現 | 1.3, 1.6, 1.7 | Error | Service |
 | Puzzle | データ型 | パズル全体の集約 | 1.4, 1.5, 1.6 | Clue, Error | Service |
-| Error | エラー | エラー条件の表現 | 7.1, 7.2, 7.3 | — | — |
+| Error | エラー | 構築時エラー条件の表現 | 7.1, 7.2, 7.3 | — | — |
+| ValidationError | エラー | 検証時エラー条件の表現 | 7.4 | — | — |
 | Solver | トレイト | 求解インターフェース | 2.1, 2.2, 2.3, 2.4, 2.5 | Puzzle, SolveResult | Service |
 | SolveResult | データ型 | 求解結果の表現 | 2.2, 2.3 | Grid | — |
 | LinePropagator | 内部コンポーネント | 制約伝播エンジン | 3.1〜3.5 | Cell, Clue, Grid | Service |
 | Backtracker | 内部コンポーネント | バックトラッキング探索 | 4a.1〜4a.5 | Grid, LinePropagator | Service |
 | CspSolver | ソルバ | CSP 完全求解 | 4.1〜4.7 | LinePropagator, Backtracker (P0) | Service |
 | ProbingSolver | ソルバ | 高度完全求解 | 5.1〜5.5 | LinePropagator, Backtracker (P0) | Service |
-| validate | 公開関数 | 解の検証 | 6.1〜6.3 | Puzzle, Grid | Service |
+| validate | 公開関数 | 解の検証 | 6.1〜6.5 | Puzzle, Grid, ValidationError | Service |
 
 ### データ型層
 
@@ -303,11 +310,14 @@ impl Grid {
 | フィールド | 詳細 |
 |---|---|
 | 意図 | 行/列のヒント（ブロック長の列）を表現 |
-| 要件 | 1.3, 1.6 |
+| 要件 | 1.3, 1.6, 1.7 |
 
 **責務と制約**
 - 空の列はブランク行/列を表す
-- ブロック長は正の整数のみ
+- ブロック長は正の整数のみ（ゼロは `Error::InvalidBlockLength` で拒否）
+
+**依存**
+- Outbound: Error — バリデーション結果 (P0)
 
 **コントラクト**: Service
 
@@ -319,7 +329,10 @@ pub struct Clue { /* fields private */ }
 
 impl Clue {
     /// Creates a new clue from a sequence of block lengths.
-    pub fn new(blocks: Vec<u32>) -> Self;
+    ///
+    /// # Errors
+    /// - `Error::InvalidBlockLength` if any block length is zero.
+    pub fn new(blocks: Vec<u32>) -> Result<Self, Error>;
 
     /// Returns the block lengths.
     pub fn blocks(&self) -> &[u32];
@@ -334,7 +347,7 @@ impl Clue {
 ```
 
 - 前提条件: なし（空ベクタも有効）
-- 事後条件: `min_length` = blocks の合計 + max(0, block 数 - 1)
+- 事後条件: `Ok` の場合、全ブロック長が 1 以上。`min_length` = blocks の合計 + max(0, block 数 - 1)
 
 #### Puzzle
 
@@ -395,7 +408,7 @@ impl Puzzle {
 | フィールド | 詳細 |
 |---|---|
 | 意図 | ライブラリの全エラー条件をパニックなしで表現 |
-| 要件 | 7.1, 7.2, 7.3, 7.4 |
+| 要件 | 7.1, 7.2, 7.3, 7.5 |
 
 **責務と制約**
 - `std::fmt::Display` と `std::error::Error` を手動実装
@@ -406,10 +419,9 @@ impl Puzzle {
 ```rust
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
-    /// Row/column clue count does not match grid dimensions.
-    DimensionMismatch {
-        expected: usize,
-        actual: usize,
+    /// A block length of zero was provided when constructing a `Clue`.
+    InvalidBlockLength {
+        block_index: usize,
     },
     /// A clue's minimum length exceeds the line length.
     ClueExceedsLength {
@@ -651,22 +663,61 @@ impl Solver for ProbingSolver {
 | フィールド | 詳細 |
 |---|---|
 | 意図 | ソルバの解がクルーと矛盾しないことを検証 |
-| 要件 | 6.1, 6.2, 6.3 |
+| 要件 | 6.1, 6.2, 6.3, 6.4, 6.5 |
+
+**依存**
+- Outbound: ValidationError — 検証エラーの報告 (P0)
 
 **コントラクト**: Service
 
 ##### Service Interface
 
 ```rust
-/// Returns `true` if and only if every row and column in `grid`
-/// satisfies the corresponding clue in `puzzle`.
+/// Validates that every row and column in `grid` satisfies the
+/// corresponding clue in `puzzle`.
 ///
-/// Returns `false` if `grid` contains any `Unknown` cells.
-pub fn validate(puzzle: &Puzzle, grid: &Grid) -> bool;
+/// # Errors
+/// - `ValidationError::DimensionMismatch` if grid dimensions differ from puzzle.
+/// - `ValidationError::ContainsUnknown` if any cell is `Unknown`.
+/// - `ValidationError::ClueMismatch` if a row or column does not match its clue.
+pub fn validate(puzzle: &Puzzle, grid: &Grid) -> Result<(), ValidationError>;
 ```
 
-- 前提条件: `grid` のサイズが `puzzle` のサイズと一致
-- 事後条件: `true` はすべての行/列がクルーに完全一致することを保証
+- 前提条件: なし（すべての不正入力をエラーとして報告）
+- 事後条件: `Ok(())` はすべての行/列がクルーに完全一致することを保証
+
+#### ValidationError
+
+| フィールド | 詳細 |
+|---|---|
+| 意図 | validate 関数の検証エラーを詳細に報告 |
+| 要件 | 7.4 |
+
+**コントラクト**: なし（データ型のみ）
+
+```rust
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ValidationError {
+    /// Grid dimensions do not match puzzle dimensions.
+    DimensionMismatch {
+        expected_height: usize,
+        expected_width: usize,
+        actual_height: usize,
+        actual_width: usize,
+    },
+    /// The grid contains one or more `Unknown` cells.
+    ContainsUnknown,
+    /// A row or column does not satisfy its clue.
+    ClueMismatch {
+        /// `true` for row, `false` for column.
+        is_row: bool,
+        index: usize,
+    },
+}
+
+impl std::fmt::Display for ValidationError { /* ... */ }
+impl std::error::Error for ValidationError {}
+```
 
 ## Data Models
 
@@ -695,7 +746,7 @@ classDiagram
 
     class Clue {
         -blocks: Vec~u32~
-        +new(blocks) Clue
+        +new(blocks) Result~Clue, Error~
         +blocks() Slice~u32~
         +is_empty() bool
         +min_length() usize
@@ -720,12 +771,20 @@ classDiagram
 
     class Error {
         <<enum>>
-        DimensionMismatch
+        InvalidBlockLength
         ClueExceedsLength
+    }
+
+    class ValidationError {
+        <<enum>>
+        DimensionMismatch
+        ContainsUnknown
+        ClueMismatch
     }
 
     Grid --> Cell : contains
     Puzzle --> Clue : aggregates
+    Clue --> Error : validates
     SolveResult --> Grid : contains
 ```
 
@@ -743,15 +802,18 @@ classDiagram
 
 ### エラー戦略
 
-`nonogram-core` は `Result<T, Error>` による明示的エラー返却を採用する。ライブラリコード内で `unwrap()` / `expect()` は使用しない（要件 7.4）。
+`nonogram-core` は `Result<T, Error>` および `Result<T, ValidationError>` による明示的エラー返却を採用する。ライブラリコード内で `unwrap()` / `expect()` は使用しない（要件 7.5）。
 
 ### エラーカテゴリ
 
-| カテゴリ | バリアント | 発生場所 | 対応 |
-|---|---|---|---|
-| 入力エラー | `DimensionMismatch` | `Puzzle::new` | 行/列クルー数の不整合を検出 |
-| 入力エラー | `ClueExceedsLength` | `Puzzle::new` | クルーの最小長が行/列長を超過 |
-| 内部状態 | `Contradiction` | `LinePropagator` 内部 | 有効配置がゼロ。呼び出し元ソルバに通知 |
+| カテゴリ | 型 | バリアント | 発生場所 | 対応 |
+|---|---|---|---|---|
+| 構築エラー | `Error` | `InvalidBlockLength` | `Clue::new` | ゼロ値のブロック長を検出 |
+| 構築エラー | `Error` | `ClueExceedsLength` | `Puzzle::new` | クルーの最小長が行/列長を超過 |
+| 検証エラー | `ValidationError` | `DimensionMismatch` | `validate` | Grid と Puzzle のサイズ不一致 |
+| 検証エラー | `ValidationError` | `ContainsUnknown` | `validate` | Grid に Unknown セル含有 |
+| 検証エラー | `ValidationError` | `ClueMismatch` | `validate` | 行/列がクルーと不一致 |
+| 内部状態 | `Contradiction` | — | `LinePropagator` 内部 | 有効配置がゼロ。呼び出し元ソルバに通知 |
 
 `Contradiction` は `pub(crate)` の内部型であり、外部には `SolveResult::NoSolution` として表出する。
 
@@ -760,13 +822,13 @@ classDiagram
 ### 単体テスト
 - **Cell**: バリアント値の等価性、Clone/Copy/Debug 動作確認
 - **Grid**: 構築、get/set、行/列アクセス、境界チェック、is_complete
-- **Clue**: 空クルー、単一ブロック、複数ブロック、min_length 計算
+- **Clue**: 空クルー、単一ブロック、複数ブロック、min_length 計算、ゼロブロック長エラー
 - **Puzzle**: 正常構築、DimensionMismatch エラー、ClueExceedsLength エラー
 - **Error**: Display 出力の検証
 - **LinePropagator::solve_line**: 全 Filled 行、全 Blank 行、部分確定行、矛盾行
 - **LinePropagator::propagate**: 小パズルでフィックスポイント到達確認、矛盾パズルの検出
 - **Backtracker**: 唯一解パズル、複数解パズル（2件で停止確認）、解なしパズル
-- **validate**: 正解グリッド → true、不正解グリッド → false、Unknown 含有 → false
+- **validate**: 正解グリッド → Ok、クルー不一致 → ClueMismatch、Unknown 含有 → ContainsUnknown、サイズ不一致 → DimensionMismatch
 
 ### 結合テスト
 - **CspSolver**: 1×1 パズル、5×5 典型パズル、解なしパズル、複数解パズル、空クルーパズル
@@ -815,7 +877,7 @@ pub use cell::Cell;
 pub use grid::Grid;
 pub use clue::Clue;
 pub use puzzle::Puzzle;
-pub use error::Error;
+pub use error::{Error, ValidationError};
 pub use solver::{Solver, SolveResult};
 pub use validate::validate;
 ```

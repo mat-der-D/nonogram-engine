@@ -27,6 +27,7 @@
 4. The nonogram-core shall provide a `Puzzle` type that aggregates a list of row `Clue`s and a list of column `Clue`s (the grid dimensions are derived from the clue list lengths).
 5. If ノノグラムパズルの行数・列数・クルーリスト長が不整合である場合、the nonogram-core shall return an error when constructing a `Puzzle`.
 6. The nonogram-core shall ensure that all core types (`Cell`, `Grid`, `Clue`, `Puzzle`) implement `Clone` and `Debug`.
+7. If `Clue` のブロック長リストにゼロが含まれる場合、the nonogram-core shall return `Err(Error::InvalidBlockLength)` when constructing a `Clue`.
 
 ---
 
@@ -108,9 +109,11 @@
 
 #### 受入基準
 
-1. The nonogram-core shall provide a public `validate(puzzle: &Puzzle, grid: &Grid) -> bool` function that returns `true` if and only if every row and column in `grid` satisfies the corresponding clue in `puzzle`.
-2. If `grid` にひとつでも `Unknown` セルが含まれる場合、the nonogram-core shall return `false` from `validate`.
-3. The nonogram-core shall expose `validate` as a public API function callable by external crates.
+1. The nonogram-core shall provide a public `validate(puzzle: &Puzzle, grid: &Grid) -> Result<(), ValidationError>` function that returns `Ok(())` if and only if every row and column in `grid` satisfies the corresponding clue in `puzzle`.
+2. If `grid` のサイズが `puzzle` のサイズと一致しない場合、the nonogram-core shall return `Err(ValidationError::DimensionMismatch)` from `validate`.
+3. If `grid` にひとつでも `Unknown` セルが含まれる場合、the nonogram-core shall return `Err(ValidationError::ContainsUnknown)` from `validate`.
+4. If `grid` の行または列がクルーと一致しない場合、the nonogram-core shall return `Err(ValidationError::ClueMismatch)` from `validate`.
+5. The nonogram-core shall expose `validate` as a public API function callable by external crates.
 
 ---
 
@@ -120,10 +123,11 @@
 
 #### 受入基準
 
-1. The nonogram-core shall define an `Error` enum that represents all possible error conditions of the library without panicking.
-2. If `Puzzle` が不整合な次元（行数 ≠ 行クルー数、または 列数 ≠ 列クルー数）で構築された場合、the nonogram-core shall return `Err(Error::DimensionMismatch)`.
+1. The nonogram-core shall define an `Error` enum that represents construction-time error conditions of the library without panicking.
+2. If `Clue` のブロック長リストにゼロが含まれる場合、the nonogram-core shall return `Err(Error::InvalidBlockLength)`.
 3. If `Clue` のブロック合計が対応する行・列の長さを超える場合、the nonogram-core shall return `Err(Error::ClueExceedsLength)`.
-4. The nonogram-core shall not use `unwrap()` or `expect()` in non-test library code paths.
+4. The nonogram-core shall define a `ValidationError` enum that represents validation-time error conditions (DimensionMismatch, ContainsUnknown, ClueMismatch).
+5. The nonogram-core shall not use `unwrap()` or `expect()` in non-test library code paths.
 
 ---
 
