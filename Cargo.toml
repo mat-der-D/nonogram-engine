@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "crates/nonogram-core",
+    "crates/nonogram-format",
+    "crates/nonogram-wasm",
+    "apps/cli",
+]
+resolver = "2"
