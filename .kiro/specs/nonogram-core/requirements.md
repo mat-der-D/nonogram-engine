@@ -21,11 +21,12 @@
 
 #### 受入基準
 
-1. The nonogram-core shall provide a `Grid` type that represents an M×N board where each cell holds one of three states: `Unknown`, `Filled`, or `Blank`.
-2. The nonogram-core shall provide a `Clue` type that represents an ordered sequence of one or more positive-integer block lengths for a single row or column.
-3. The nonogram-core shall provide a `Puzzle` type that aggregates a `Grid`, a list of row `Clue`s, and a list of column `Clue`s.
-4. If ノノグラムパズルの行数・列数・クルーリスト長が不整合である場合、the nonogram-core shall return an error when constructing a `Puzzle`.
-5. The nonogram-core shall ensure that all core types (`Grid`, `Clue`, `Puzzle`) implement `Clone` and `Debug`.
+1. The nonogram-core shall provide a `Cell` enum with exactly three variants: `Unknown`, `Filled`, and `Blank`.
+2. The nonogram-core shall provide a `Grid` type that represents an M×N board where each cell holds a `Cell` value.
+3. The nonogram-core shall provide a `Clue` type that represents an ordered sequence of zero or more positive-integer block lengths for a single row or column (an empty sequence represents a fully blank line).
+4. The nonogram-core shall provide a `Puzzle` type that aggregates a list of row `Clue`s and a list of column `Clue`s (the grid dimensions are derived from the clue list lengths).
+5. If ノノグラムパズルの行数・列数・クルーリスト長が不整合である場合、the nonogram-core shall return an error when constructing a `Puzzle`.
+6. The nonogram-core shall ensure that all core types (`Cell`, `Grid`, `Clue`, `Puzzle`) implement `Clone` and `Debug`.
 
 ---
 
@@ -36,7 +37,7 @@
 #### 受入基準
 
 1. The nonogram-core shall define a `Solver` trait with a method `solve(puzzle: &Puzzle) -> SolveResult`.
-2. The nonogram-core shall define a `SolveResult` type that represents exactly one of three outcomes: `UniqueSolution(Grid)` (唯一解)、`MultipleSolutions(Vec<Grid>)` (複数解の代表例)、`NoSolution` (解なし).
+2. The nonogram-core shall define a `SolveResult` type that represents exactly one of three outcomes: `UniqueSolution(Grid)` (唯一解)、`MultipleSolutions(Vec<Grid>)` (複数解の代表例; the vector contains two or more example grids)、`NoSolution` (解なし).
 3. When a type implements `Solver`, the nonogram-core shall guarantee that `solve` always returns a complete `SolveResult` and never returns a grid containing `Unknown` cells as a solution.
 4. The nonogram-core shall allow any type implementing `Solver` to be used interchangeably via trait objects (`dyn Solver`).
 5. The nonogram-core shall document all public items of the `Solver` trait and `SolveResult` type in American English.
