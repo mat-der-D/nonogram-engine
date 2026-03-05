@@ -36,7 +36,7 @@
 
 #### 受入基準
 
-1. The nonogram-core shall define a `Solver` trait with a method `solve(puzzle: &Puzzle) -> SolveResult`.
+1. The nonogram-core shall define a `Solver` trait with a method `solve(&self, puzzle: &Puzzle) -> SolveResult`.
 2. The nonogram-core shall define a `SolveResult` type that represents exactly one of three outcomes: `UniqueSolution(Grid)` (唯一解)、`MultipleSolutions(Vec<Grid>)` (複数解の代表例; the vector contains two or more example grids)、`NoSolution` (解なし).
 3. When a type implements `Solver`, the nonogram-core shall guarantee that `solve` always returns a complete `SolveResult` and never returns a grid containing `Unknown` cells as a solution.
 4. The nonogram-core shall allow any type implementing `Solver` to be used interchangeably via trait objects (`dyn Solver`).
@@ -66,11 +66,25 @@
 
 1. The nonogram-core shall provide a `CspSolver` that implements the `Solver` trait and fully solves any given puzzle.
 2. When `CspSolver` begins solving, the nonogram-core shall first apply constraint propagation to reduce the search space.
-3. If 制約伝播後に `Unknown` セルが残る場合、the nonogram-core shall exhaustively explore branches by hypothesizing `Filled` and `Blank` for each undetermined cell in turn.
+3. If 制約伝播後に `Unknown` セルが残る場合、the nonogram-core shall select an undetermined cell using the MRV (Minimum Remaining Values) heuristic and exhaustively explore branches by hypothesizing `Filled` and `Blank` for that cell.
 4. If 分岐が矛盾に至る場合、the nonogram-core shall backtrack and try the alternative hypothesis.
 5. When `CspSolver` finds a second distinct solution, the nonogram-core shall immediately halt the search and return `MultipleSolutions`.
 6. If `CspSolver` exhausts all branches without finding a solution, the nonogram-core shall return `NoSolution`.
 7. When `CspSolver` finds exactly one solution, the nonogram-core shall return `UniqueSolution(Grid)`.
+
+---
+
+### 要件 4a: バックトラッキングコンポーネント（Backtracker）
+
+**目的:** ソルバ開発者として、網羅的探索（仮説設定・矛盾検出・ロールバック）の共通ロジックを再利用したい。これにより、複数のソルバ間でバックトラッキング処理を重複実装せずに済むようにするため。
+
+#### 受入基準
+
+1. The nonogram-core shall provide a `Backtracker` as a crate-internal component (not public API) that does NOT implement the `Solver` trait.
+2. When given a grid with `Unknown` cells, the nonogram-core shall allow `Backtracker` to snapshot the current grid state before hypothesizing a cell value.
+3. If a hypothesis leads to a contradiction, the nonogram-core shall allow `Backtracker` to roll back the grid to the most recent snapshot and try the alternative hypothesis.
+4. The nonogram-core shall ensure that `Backtracker` cooperates with `LinePropagator` by invoking constraint propagation after each hypothesis assignment.
+5. When `Backtracker` finds a second distinct solution, the nonogram-core shall allow the calling solver to halt the search early.
 
 ---
 
