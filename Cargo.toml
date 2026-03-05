@@ -4,5 +4,6 @@ members = [
     "crates/nonogram-format",
     "crates/nonogram-wasm",
     "apps/cli",
+    "apps/desktop/src-tauri",
 ]
 resolver = "2"
