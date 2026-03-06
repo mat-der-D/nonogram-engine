@@ -31,17 +31,14 @@ nonogram-engine/
 ### Crate Dependency Graph
 
 ```
-nonogram-core ◄─── nonogram-wasm ◄─── apps/web
-              ◄─── apps/cli
+nonogram-core ◄─── nonogram-format ◄─── nonogram-wasm ◄─── apps/web
+              ◄─── nonogram-wasm               ◄─── apps/cli
+              ◄─── apps/cli                    ◄─── apps/desktop
               ◄─── apps/desktop
-
-nonogram-format ◄─── nonogram-wasm
-                ◄─── apps/cli
-                ◄─── apps/desktop
 ```
 
 `nonogram-core` has zero dependency on `nonogram-format`.
-Conversion between the JSON format types and the solver's native types is the responsibility of the application/binding layer.
+`nonogram-format` depends on `nonogram-core` and provides conversion functions between JSON representations and `nonogram-core` types (`Puzzle`, `SolveResult`).
 
 ---
 
@@ -307,7 +304,7 @@ Triggered on version tags (`v*`).
 | 3 | Nonogram type | Binary (black & white) only |
 | 4 | JSON format — problem | `row_clues` + `col_clues` only; width/height derived from array lengths |
 | 5 | JSON format — solution | `status` (`none`/`unique`/`multiple`) + `solutions` (0, 1, or 2 grids) |
-| 6 | Format crate | Independent crate; `nonogram-core` does NOT depend on it |
+| 6 | Format crate | Depends on `nonogram-core`; provides JSON↔`Puzzle`/`SolveResult` conversion; `nonogram-core` does NOT depend on it |
 | 7 | Web framework | Vite + React + TypeScript |
 | 8 | Workspace layout | `crates/` (core, format, wasm) + `apps/` (cli, desktop, web) |
 | 9 | Development methodology | cc-sdd (Spec-Driven Development) |
