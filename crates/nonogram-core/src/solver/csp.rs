@@ -25,20 +25,7 @@ impl Solver for CspSolver {
 
         // Phase 3: Backtracking search with max_solutions=2.
         let solutions = Backtracker::search(&grid, puzzle, 2);
-
-        // TODO: 0 と 1 の分岐が冗長. シンプルにする.
-        match solutions.len() {
-            0 => SolveResult::NoSolution,
-            1 => {
-                let mut iter = solutions.into_iter();
-                // SAFETY: len() == 1 guarantees next() returns Some.
-                SolveResult::UniqueSolution(match iter.next() {
-                    Some(g) => g,
-                    None => return SolveResult::NoSolution,
-                })
-            }
-            _ => SolveResult::MultipleSolutions(solutions),
-        }
+        SolveResult::from_solutions(solutions)
     }
 }
 

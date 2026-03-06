@@ -17,6 +17,17 @@ pub enum SolveResult {
     MultipleSolutions(Vec<Grid>),
 }
 
+impl SolveResult {
+    /// Converts a vector of solutions into a `SolveResult`.
+    pub(crate) fn from_solutions(mut solutions: Vec<Grid>) -> Self {
+        match solutions.len() {
+            0 => Self::NoSolution,
+            1 => Self::UniqueSolution(solutions.pop().unwrap()),
+            _ => Self::MultipleSolutions(solutions),
+        }
+    }
+}
+
 /// A solver that fully solves a nonogram puzzle.
 ///
 /// All implementations guarantee that `solve` returns a complete result

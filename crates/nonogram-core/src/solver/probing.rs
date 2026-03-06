@@ -99,18 +99,7 @@ impl Solver for ProbingSolver {
 
         // Phase 3: Fall back to backtracking.
         let solutions = Backtracker::search(&grid, puzzle, 2);
-
-        match solutions.len() {
-            0 => SolveResult::NoSolution,
-            1 => {
-                let mut iter = solutions.into_iter();
-                SolveResult::UniqueSolution(match iter.next() {
-                    Some(g) => g,
-                    None => return SolveResult::NoSolution,
-                })
-            }
-            _ => SolveResult::MultipleSolutions(solutions),
-        }
+        SolveResult::from_solutions(solutions)
     }
 }
 

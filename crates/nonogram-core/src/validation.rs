@@ -68,11 +68,9 @@ fn extract_blocks(line: &[Cell]) -> Vec<u32> {
     for &c in line {
         if c == Cell::Filled {
             count += 1;
-        } else {
-            if count > 0 {
-                blocks.push(count);
-                count = 0;
-            }
+        } else if count > 0 {
+            blocks.push(count);
+            count = 0;
         }
     }
     if count > 0 {
