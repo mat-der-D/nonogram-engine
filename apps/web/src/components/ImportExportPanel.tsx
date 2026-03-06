@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
-import type { NonogramStore, PuzzleJson } from '../hooks/useNonogramStore';
+import type { NonogramStore } from '../hooks/useNonogramStore';
 import { PuzzleIOService } from '../services/PuzzleIOService';
 import type { PuzzleIOError } from '../services/PuzzleIOService';
-import { parseClueString } from '../utils/clueParseUtils';
 
 interface Props {
   store: NonogramStore;
@@ -13,15 +12,8 @@ export function ImportExportPanel({ store }: Props) {
   const [importError, setImportError] = useState('');
 
   const handleExportPuzzle = () => {
-    const rowClues = store.rowClueInputs.map(raw => {
-      const r = parseClueString(raw);
-      return r.ok ? r.clues : [];
-    });
-    const colClues = store.colClueInputs.map(raw => {
-      const r = parseClueString(raw);
-      return r.ok ? r.clues : [];
-    });
-    PuzzleIOService.exportPuzzle(rowClues, colClues);
+    const { row_clues, col_clues } = store.getPuzzleJson();
+    PuzzleIOService.exportPuzzle(row_clues, col_clues);
   };
 
   const handleExportTemplate = () => {
@@ -34,7 +26,7 @@ export function ImportExportPanel({ store }: Props) {
     setImportError('');
     try {
       const puzzle = await PuzzleIOService.importPuzzle(file);
-      store.loadPuzzle(puzzle as PuzzleJson);
+      store.loadPuzzle(puzzle);
     } catch (err) {
       const error = err as PuzzleIOError;
       setImportError(error.message ?? 'インポートに失敗しました');

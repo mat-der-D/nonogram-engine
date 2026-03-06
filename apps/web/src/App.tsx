@@ -12,8 +12,7 @@ import './App.css';
 function NonogramApp() {
   const wasm = useWasm();
   const store = useNonogramStore();
-  const isSolving = store.solvePhase.phase === 'solving';
-  const isDisabled = isSolving;
+  const isDisabled = store.solvePhase.phase === 'solving';
 
   if (wasm.status.phase === 'loading') {
     return (

@@ -1,17 +1,10 @@
-export interface ImportedPuzzle {
-  row_clues: number[][];
-  col_clues: number[][];
-}
+import type { PuzzleJson, SolveResult } from '../hooks/useNonogramStore';
+
+export type { PuzzleJson, SolveResult };
 
 export type PuzzleIOError =
   | { kind: 'parse'; message: string }
   | { kind: 'schema'; message: string };
-
-export interface SolveResult {
-  status: 'none' | 'unique' | 'multiple' | 'error';
-  solutions: boolean[][][];
-  errorMessage?: string;
-}
 
 function downloadJson(data: unknown, filename: string): void {
   const json = JSON.stringify(data, null, 2);
@@ -42,7 +35,7 @@ export const PuzzleIOService = {
     );
   },
 
-  importPuzzle(file: File): Promise<ImportedPuzzle> {
+  importPuzzle(file: File): Promise<PuzzleJson> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
