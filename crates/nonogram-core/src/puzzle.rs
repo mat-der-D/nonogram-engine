@@ -1,5 +1,5 @@
 use crate::clue::Clue;
-use crate::error::Error;
+use crate::error::{ClueKind, Error};
 
 /// Represents a complete nonogram puzzle consisting of row and column clues.
 ///
@@ -28,8 +28,8 @@ impl Puzzle {
 
         for (i, clue) in row_clues.iter().enumerate() {
             if clue.min_length() > width {
-                // TODO: row/col のどちらから来たエラーなのかを明示する
                 return Err(Error::ClueExceedsLength {
+                    kind: ClueKind::Row,
                     line_index: i,
                     clue_min_length: clue.min_length(),
                     line_length: width,
@@ -39,8 +39,8 @@ impl Puzzle {
 
         for (i, clue) in col_clues.iter().enumerate() {
             if clue.min_length() > height {
-                // TODO: row/col のどちらから来たエラーなのかを明示する
                 return Err(Error::ClueExceedsLength {
+                    kind: ClueKind::Col,
                     line_index: i,
                     clue_min_length: clue.min_length(),
                     line_length: height,
@@ -78,6 +78,7 @@ impl Puzzle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::ClueKind;
 
     fn clue(blocks: &[u32]) -> Clue {
         Clue::new(blocks.to_vec()).unwrap()
@@ -111,6 +112,7 @@ mod tests {
         assert_eq!(
             result,
             Err(Error::ClueExceedsLength {
+                kind: ClueKind::Row,
                 line_index: 0,
                 clue_min_length: 3,
                 line_length: 2,
@@ -125,6 +127,7 @@ mod tests {
         assert_eq!(
             result,
             Err(Error::ClueExceedsLength {
+                kind: ClueKind::Col,
                 line_index: 0,
                 clue_min_length: 3,
                 line_length: 1,

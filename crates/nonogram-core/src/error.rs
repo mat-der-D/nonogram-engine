@@ -1,15 +1,22 @@
-// TODO: thiserror を使って実装を簡略化
+use thiserror::Error;
 
 /// Represents construction-time errors in the nonogram library.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum Error {
     /// A block length of zero was provided when constructing a `Clue`.
+    #[error("block at index {block_index} has length zero")]
     InvalidBlockLength {
         /// The index of the zero-length block in the input sequence.
         block_index: usize,
     },
     /// A clue's minimum length exceeds the corresponding line length.
+    #[error(
+        "{kind} clue at index {line_index} requires minimum length {clue_min_length}, \
+         but line length is {line_length}"
+    )]
     ClueExceedsLength {
+        /// Whether this is a row or column clue.
+        kind: ClueKind,
         /// The index of the offending line (row or column).
         line_index: usize,
         /// The minimum length required by the clue.
@@ -18,37 +25,34 @@ pub enum Error {
         line_length: usize,
     },
     /// An empty clue list was provided (0xN or Mx0 puzzle).
+    #[error("clue list is empty")]
     EmptyClueList,
 }
 
-impl std::fmt::Display for Error {
+/// Indicates whether a clue belongs to a row or a column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClueKind {
+    Row,
+    Col,
+}
+
+impl std::fmt::Display for ClueKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidBlockLength { block_index } => {
-                write!(f, "block at index {block_index} has length zero")
-            }
-            Self::ClueExceedsLength {
-                line_index,
-                clue_min_length,
-                line_length,
-            } => {
-                write!(
-                    f,
-                    "clue at line {line_index} requires minimum length {clue_min_length}, \
-                     but line length is {line_length}"
-                )
-            }
-            Self::EmptyClueList => write!(f, "clue list is empty"),
+            Self::Row => write!(f, "row"),
+            Self::Col => write!(f, "column"),
         }
     }
 }
 
-impl std::error::Error for Error {}
-
 /// Represents validation-time errors when checking a solution against a puzzle.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum ValidationError {
     /// Grid dimensions do not match puzzle dimensions.
+    #[error(
+        "dimension mismatch: expected {expected_height}x{expected_width}, \
+         got {actual_height}x{actual_width}"
+    )]
     DimensionMismatch {
         /// Expected number of rows.
         expected_height: usize,
@@ -60,8 +64,10 @@ pub enum ValidationError {
         actual_width: usize,
     },
     /// The grid contains one or more `Unknown` cells.
+    #[error("grid contains unknown cells")]
     ContainsUnknown,
     /// A row or column does not satisfy its clue.
+    #[error("{} {} does not match its clue", if *.is_row { "row" } else { "column" }, .index)]
     ClueMismatch {
         /// `true` for row, `false` for column.
         is_row: bool,
@@ -69,32 +75,6 @@ pub enum ValidationError {
         index: usize,
     },
 }
-
-impl std::fmt::Display for ValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::DimensionMismatch {
-                expected_height,
-                expected_width,
-                actual_height,
-                actual_width,
-            } => {
-                write!(
-                    f,
-                    "dimension mismatch: expected {expected_height}x{expected_width}, \
-                     got {actual_height}x{actual_width}"
-                )
-            }
-            Self::ContainsUnknown => write!(f, "grid contains unknown cells"),
-            Self::ClueMismatch { is_row, index } => {
-                let kind = if *is_row { "row" } else { "column" };
-                write!(f, "{kind} {index} does not match its clue")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ValidationError {}
 
 #[cfg(test)]
 mod tests {
@@ -107,15 +87,30 @@ mod tests {
     }
 
     #[test]
-    fn error_display_clue_exceeds_length() {
+    fn error_display_clue_exceeds_length_row() {
         let e = Error::ClueExceedsLength {
+            kind: ClueKind::Row,
             line_index: 1,
             clue_min_length: 8,
             line_length: 5,
         };
         assert_eq!(
             e.to_string(),
-            "clue at line 1 requires minimum length 8, but line length is 5"
+            "row clue at index 1 requires minimum length 8, but line length is 5"
+        );
+    }
+
+    #[test]
+    fn error_display_clue_exceeds_length_col() {
+        let e = Error::ClueExceedsLength {
+            kind: ClueKind::Col,
+            line_index: 0,
+            clue_min_length: 3,
+            line_length: 1,
+        };
+        assert_eq!(
+            e.to_string(),
+            "column clue at index 0 requires minimum length 3, but line length is 1"
         );
     }
 
