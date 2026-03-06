@@ -34,8 +34,6 @@ impl Backtracker {
         for &hypothesis in &[Cell::Filled, Cell::Blank] {
             let mut trial = grid.clone();
             trial.set(row, col, hypothesis);
-
-            // TODO: Propagator を差し替えられるようにする
             match LinePropagator::propagate(&mut trial, puzzle) {
                 Ok(_) => {
                     let remaining = max_solutions - solutions.len();
