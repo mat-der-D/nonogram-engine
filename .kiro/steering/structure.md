@@ -57,5 +57,18 @@ import { Component } from './Component'
 
 デスクトップとWebはともに `src/` にReactソースを置き、`vite.config.ts` でビルド設定を行う。
 
+### apps/web のソース構成パターン
+
+```
+src/
+  utils/        # 純粋関数ユーティリティ（clueParseUtils, clueComputeUtils など）
+  services/     # 副作用を伴うサービス層（PuzzleIOService など）
+  contexts/     # React Context + Provider（WasmContext など）
+  hooks/        # カスタムフック（useNonogramStore など）
+  components/   # UIコンポーネント（PascalCase）
+```
+
+- ユーティリティ・サービスのテストは各ディレクトリ内の `__tests__/` サブディレクトリに配置する
+
 ---
 _パターンを記録する。ファイルツリーの列挙ではない。新しいファイルがパターンに従う限り、更新不要。_

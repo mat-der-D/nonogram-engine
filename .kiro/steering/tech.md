@@ -64,12 +64,19 @@ pub mod cell;
 `mod.rs` 方式はRust 2018以降は非推奨。新規ファイル作成時は必ず `モジュール名.rs` + 同名ディレクトリの構成を使うこと。
 
 ### TypeScript
-- TypeScript strict mode
+- TypeScript strict mode（`verbatimModuleSyntax` 有効）→ 型のみのインポートは必ず `import type { ... }` を使うこと
 - ESLintによる静的解析（`apps/web`）
 
 ### テスト
 - Rust: `cargo test --workspace`
 - 単体テストは各クレートと同一ファイル内（`#[cfg(test)]`）
+- Web: **Vitest** + happy-dom（`bun run test`）
+
+### apps/web — WASMインテグレーション規約
+- WASMビルドは `--target web` フラグが必須: `wasm-pack build --target web crates/nonogram-wasm`
+- `package.json` への参照: `"nonogram-wasm": "file:../../crates/nonogram-wasm/pkg"`
+- Vite 7 は WASM ESM を標準サポートしないため `vite-plugin-wasm` + `vite-plugin-top-level-await` が必要
+- `vite.config.ts` でテスト設定（`test:` キー）を記述する場合は `import { defineConfig } from 'vitest/config'` を使うこと（`vite` からのインポートだと TypeScript エラーになる）
 
 ## 開発コマンド
 
@@ -77,8 +84,8 @@ pub mod cell;
 # Rust全体テスト
 cargo test --workspace
 
-# WASMビルド
-wasm-pack build crates/nonogram-wasm
+# WASMビルド（--target web 必須）
+wasm-pack build --target web crates/nonogram-wasm
 
 # Webアプリ開発
 cd apps/web && bun install && bun run dev
@@ -88,6 +95,9 @@ cd apps/desktop && bun install && bun run tauri dev
 
 # CLIビルド
 cargo build -p cli --release
+
+# Webアプリテスト
+cd apps/web && bun run test
 ```
 
 ## 主要技術決定
