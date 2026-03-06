@@ -68,10 +68,10 @@ impl Backtracker {
 
         let mut best: Option<(usize, usize, usize)> = None;
 
-        for r in 0..grid.height() {
-            for c in 0..grid.width() {
+        for (r, &rc) in row_counts.iter().enumerate() {
+            for (c, &cc) in col_counts.iter().enumerate() {
                 if grid.get(r, c) == Cell::Unknown {
-                    let score = row_counts[r] + col_counts[c];
+                    let score = rc + cc;
                     let dominated = match best {
                         None => true,
                         Some((_, _, best_score)) => score < best_score,

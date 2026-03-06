@@ -153,8 +153,8 @@ impl LinePropagator {
                     continue;
                 }
 
-                for p in s..s + b {
-                    can_be_filled[p] = true;
+                for cell in &mut can_be_filled[s..s + b] {
+                    *cell = true;
                 }
             }
         }
