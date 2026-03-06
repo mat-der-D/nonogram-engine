@@ -26,7 +26,6 @@ export function WasmProvider({ children }: { children: React.ReactNode }): React
     (async () => {
       try {
         const wasm = await import('nonogram-wasm');
-        await wasm.default();
         if (!cancelled) {
           setSolveRef(() => (puzzleJson: string) => wasm.solve(puzzleJson));
           setStatus({ phase: 'ready' });
