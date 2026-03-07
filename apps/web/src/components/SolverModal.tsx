@@ -8,7 +8,7 @@ interface Props {
 export function SolverModal({ store }: Props) {
   if (!store.isSolverOpen) return null;
 
-  const { solvePhase, setSolverOpen } = store;
+  const { solvePhase, setSolverOpen, cancelSolve } = store;
   const isClosable = solvePhase.phase !== 'solving';
 
   return (
@@ -33,11 +33,18 @@ export function SolverModal({ store }: Props) {
             <div className="solver-solving">
               <div className="spinner" />
               <p>解析中...</p>
+              <button className="toolbar-btn" onClick={() => cancelSolve()}>
+                中止
+              </button>
             </div>
           )}
 
           {solvePhase.phase === 'idle' && (
             <p className="solver-message">検証を実行してください。</p>
+          )}
+
+          {solvePhase.phase === 'cancelled' && (
+            <p className="solver-message">解析を中止しました。</p>
           )}
 
           {solvePhase.phase === 'done' && (

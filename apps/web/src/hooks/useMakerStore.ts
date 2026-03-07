@@ -1,11 +1,11 @@
 import { useReducer, useCallback, useRef, useMemo } from 'react';
-import { useWasm } from '../contexts/WasmContext';
 import { computeRowClues, computeColClues } from '../utils/clueComputeUtils';
 
 export type SolvePhase =
   | { phase: 'idle' }
   | { phase: 'solving' }
-  | { phase: 'done'; result: SolveResult };
+  | { phase: 'done'; result: SolveResult }
+  | { phase: 'cancelled' };
 
 export interface SolveResult {
   status: 'none' | 'unique' | 'multiple' | 'error';
@@ -138,14 +138,15 @@ export interface MakerStore extends MakerState {
   redo(): void;
   loadGrid(cells: boolean[][]): void;
   solve(): Promise<void>;
+  cancelSolve(): void;
   setConvertOpen(open: boolean): void;
   setSolverOpen(open: boolean): void;
 }
 
 export function useMakerStore(): MakerStore {
   const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
-  const wasm = useWasm();
   const dragActionRef = useRef<'fill' | 'erase' | null>(null);
+  const workerRef = useRef<Worker | null>(null);
 
   const rowClues = useMemo(() => computeRowClues(state.cells), [state.cells]);
   const colClues = useMemo(() => computeColClues(state.cells), [state.cells]);
@@ -202,21 +203,46 @@ export function useMakerStore(): MakerStore {
     dispatch({ type: 'SET_SOLVER_OPEN', open: true });
     dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'solving' } });
     await new Promise(r => setTimeout(r, 0));
-    try {
-      const rClues = rowCluesRef.current;
-      const cClues = colCluesRef.current;
-      const puzzleJson = JSON.stringify({ row_clues: rClues, col_clues: cClues });
-      const resultJson = wasm.solve(puzzleJson);
-      const result = JSON.parse(resultJson) as SolveResult;
-      dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'done', result } });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      dispatch({
-        type: 'SET_SOLVE_PHASE',
-        phase: { phase: 'done', result: { status: 'error', solutions: [], errorMessage: message } },
-      });
+
+    const puzzleJson = JSON.stringify({
+      row_clues: rowCluesRef.current,
+      col_clues: colCluesRef.current,
+    });
+
+    const worker = new Worker(
+      new URL('../workers/solveWorker.ts', import.meta.url),
+      { type: 'module' }
+    );
+    workerRef.current = worker;
+
+    worker.onmessage = (event) => {
+      workerRef.current = null;
+      worker.terminate();
+      const msg = event.data;
+      if (msg.type === 'result') {
+        const result = JSON.parse(msg.resultJson) as SolveResult;
+        dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'done', result } });
+      } else {
+        dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'done', result: { status: 'error', solutions: [], errorMessage: msg.message } } });
+      }
+    };
+
+    worker.onerror = (event) => {
+      workerRef.current = null;
+      worker.terminate();
+      dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'done', result: { status: 'error', solutions: [], errorMessage: event.message ?? 'Worker error' } } });
+    };
+
+    worker.postMessage({ type: 'solve', puzzleJson });
+  }, []);
+
+  const cancelSolve = useCallback(() => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
     }
-  }, [wasm]);
+    dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'cancelled' } });
+  }, []);
 
   const setConvertOpen = useCallback((open: boolean) => {
     dispatch({ type: 'SET_CONVERT_OPEN', open });
@@ -243,6 +269,7 @@ export function useMakerStore(): MakerStore {
     redo,
     loadGrid,
     solve,
+    cancelSolve,
     setConvertOpen,
     setSolverOpen,
   };
