@@ -38,7 +38,7 @@ export function WasmProvider({ children }: { children: React.ReactNode }): React
     threshold: number,
     edgeStrength: number,
     noiseRemoval: number,
-  ) => string>(() => noopImageToGrid);
+  ) => string>(() => noop);
 
   useEffect(() => {
     let cancelled = false;
