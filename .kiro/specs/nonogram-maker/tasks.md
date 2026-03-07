@@ -88,9 +88,9 @@
   - `nonogram-wasm/Cargo.toml` に `nonogram-core` への依存が反映されていることを確認する（`nonogram-format` は既存依存）
   - _Requirements: 6.3_
 
-- [ ] 5. (P) グリッドエディタ UI コンポーネントを実装する
+- [x] 5. (P) グリッドエディタ UI コンポーネントを実装する
 
-- [ ] 5.1 (P) EditorGrid コンポーネントを実装する
+- [x] 5.1 (P) EditorGrid コンポーネントを実装する
   - CSS Grid を使った 4 領域レイアウト（角・列クルー・行クルー・セルグリッド）でグリッドを描画するコンポーネントを実装する
   - `onMouseDown` → `startDrag`、`onMouseEnter` → `dragCell`、`window` の `onMouseUp` → `endDrag` のマウスイベントを接続する
   - `Ctrl+Z` → `undo()`、`Ctrl+Shift+Z` / `Ctrl+Y` → `redo()` のキーボードショートカットをウィンドウ単位で登録する
@@ -99,7 +99,7 @@
   - 塗りつぶしセル: `#111`、空白: `#fff`、ホバー: `#ccc` で色を制御する
   - _Requirements: 1.2, 1.3_
 
-- [ ] 5.2 (P) クルー表示と EditorToolbar コンポーネントを実装する
+- [x] 5.2 (P) クルー表示と EditorToolbar コンポーネントを実装する
   - `useMakerStore.rowClues`・`colClues` をセル外（左・上）にリアルタイムで表示するクルー描画を実装する
   - クルーテキストはセルサイズに比例したフォントサイズで、行クルーは右寄せ、列クルーは下寄せとする
   - `EditorToolbar` に幅・高さ入力、Convert ボタン、Undo/Redo/リセットボタン、検証ボタン、Export ドロップダウン（JSON / PNG）を配置する
@@ -107,7 +107,7 @@
   - Export ドロップダウンから `ExportService.exportJson` / `ExportService.exportPng` を呼び出す
   - _Requirements: 1.1, 1.4, 1.5, 4.3, 7.3_
 
-- [ ] 6. (P) SolverModal コンポーネントを実装する
+- [x] 6. (P) SolverModal コンポーネントを実装する
   - `solvePhase.phase === 'solving'` 時はスピナーと「解析中...」を表示し、「閉じる」ボタンを無効化する（エディタ・ツールバーはブロックしない）
   - `status === 'unique'` 時は「唯一解」バッジと解グリッド 1 枚を表示する
   - `status === 'multiple'` 時は「複数解」バッジと解グリッド最大 2 枚を横並びで表示する
@@ -116,21 +116,21 @@
   - ConvertModal と同じフルスクリーンオーバーレイパターン（背景: 半透明黒、中央パネル）を踏襲する
   - _Requirements: 3.2, 3.3, 3.4, 3.5, 3.6_
 
-- [ ] 7. (P) ExportService を実装する
+- [x] 7. (P) ExportService を実装する
 
-- [ ] 7.1 (P) JSON エクスポートを実装する
+- [x] 7.1 (P) JSON エクスポートを実装する
   - `cells` から `computeRowClues`・`computeColClues` でクルーを計算し、`{ "row_clues": number[][], "col_clues": number[][] }` 形式の JSON を生成してブラウザダウンロードを発火する `exportJson(cells, filename?)` 関数を実装する
   - `<a download>` 要素と `URL.createObjectURL` を使ってダウンロードを行う
   - _Requirements: 4.1_
 
-- [ ] 7.2 (P) PNG エクスポートを実装する
+- [x] 7.2 (P) PNG エクスポートを実装する
   - 動的に `<canvas>` を生成して DOM に追加せず、行・列クルーと問題グリッドを描画する `exportPng(cells, rowClues, colClues, filename?)` 非同期関数を実装する
   - グリッドサイズに応じてセルサイズを自動調整する（推奨: 最小 10px/セル）
   - クルーはグリッドの左（行）・上（列）に配置する
   - `canvas.toBlob` → `URL.createObjectURL` → `<a download>` でファイルをダウンロードする
   - _Requirements: 4.2_
 
-- [ ] 7.3* ExportService のユニットテストを実装する
+- [x] 7.3* ExportService のユニットテストを実装する
   - `exportJson` が `{ row_clues, col_clues }` 形式の正しい JSON を生成することを検証する
   - `isExportable` が全 `false` のグリッドで `false` を返すことを検証する
   - _Requirements: 4.1, 4.2, 4.3_
