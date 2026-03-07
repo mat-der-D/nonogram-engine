@@ -1,24 +1,20 @@
 import { useWasm, WasmProvider } from './contexts/WasmContext';
-import { useNonogramStore } from './hooks/useNonogramStore';
-import { PuzzleSizeInput } from './components/PuzzleSizeInput';
-import { ModeToggle } from './components/ModeToggle';
-import { ClueInputPanel } from './components/ClueInputPanel';
-import { GridDrawingPanel } from './components/GridDrawingPanel';
-import { SolveButton } from './components/SolveButton';
-import { ResultPanel } from './components/ResultPanel';
-import { ImportExportPanel } from './components/ImportExportPanel';
+import { useMakerStore } from './hooks/useMakerStore';
+import { EditorToolbar } from './components/EditorToolbar';
+import { EditorGrid } from './components/EditorGrid';
+import { SolverModal } from './components/SolverModal';
+import { ConvertModal } from './components/ConvertModal';
 import './App.css';
 
-function NonogramApp() {
+function MakerApp() {
   const wasm = useWasm();
-  const store = useNonogramStore();
-  const isDisabled = store.solvePhase.phase === 'solving';
+  const store = useMakerStore();
 
   if (wasm.status.phase === 'loading') {
     return (
       <div className="wasm-loading">
         <div className="spinner" />
-        <p>WASM 読み込み中...</p>
+        <p>読み込み中...</p>
       </div>
     );
   }
@@ -26,30 +22,19 @@ function NonogramApp() {
   return (
     <div className="app-root">
       <header className="app-header">
-        <h1 className="app-title">Nonogram Solver</h1>
+        <h1 className="app-title">Nonogram Maker</h1>
         {wasm.status.phase === 'error' && (
           <div className="wasm-error-banner">
-            WASM初期化エラー: {wasm.status.message}（求解機能は利用できません）
+            WASM初期化エラー: {wasm.status.message}（求解・変換機能は利用できません）
           </div>
         )}
-        <ImportExportPanel store={store} />
       </header>
-
-      <main className="app-main">
-        <section className="input-panel">
-          <PuzzleSizeInput store={store} disabled={isDisabled} />
-          <ModeToggle store={store} disabled={isDisabled} />
-          <ClueInputPanel store={store} disabled={isDisabled} />
-          <GridDrawingPanel store={store} disabled={isDisabled} />
-          <div className="solve-area">
-            <SolveButton store={store} />
-          </div>
-        </section>
-
-        <section className="result-panel-section">
-          <ResultPanel store={store} />
-        </section>
+      <EditorToolbar store={store} />
+      <main className="maker-main">
+        <EditorGrid store={store} />
       </main>
+      <SolverModal store={store} />
+      {store.isConvertOpen && <ConvertModal store={store} />}
     </div>
   );
 }
@@ -57,7 +42,7 @@ function NonogramApp() {
 function App() {
   return (
     <WasmProvider>
-      <NonogramApp />
+      <MakerApp />
     </WasmProvider>
   );
 }

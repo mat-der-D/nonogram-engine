@@ -1,0 +1,249 @@
+import { useReducer, useCallback, useRef, useMemo } from 'react';
+import { useWasm } from '../contexts/WasmContext';
+import { computeRowClues, computeColClues } from '../utils/clueComputeUtils';
+
+export type SolvePhase =
+  | { phase: 'idle' }
+  | { phase: 'solving' }
+  | { phase: 'done'; result: SolveResult };
+
+export interface SolveResult {
+  status: 'none' | 'unique' | 'multiple' | 'error';
+  solutions: boolean[][][];
+  errorMessage?: string;
+}
+
+export interface MakerState {
+  gridWidth: number;
+  gridHeight: number;
+  cells: boolean[][];
+  history: boolean[][][][];
+  future: boolean[][][][];
+  solvePhase: SolvePhase;
+  isConvertOpen: boolean;
+  isSolverOpen: boolean;
+}
+
+export type MakerAction =
+  | { type: 'SET_DIMENSIONS'; width: number; height: number }
+  | { type: 'TOGGLE_CELL'; row: number; col: number }
+  | { type: 'COMMIT_HISTORY' }
+  | { type: 'DRAG_CELL'; row: number; col: number; action: 'fill' | 'erase' }
+  | { type: 'RESET_GRID' }
+  | { type: 'UNDO' }
+  | { type: 'REDO' }
+  | { type: 'LOAD_GRID'; cells: boolean[][] }
+  | { type: 'SET_SOLVE_PHASE'; phase: SolvePhase }
+  | { type: 'SET_CONVERT_OPEN'; open: boolean }
+  | { type: 'SET_SOLVER_OPEN'; open: boolean };
+
+const MAX_HISTORY = 100;
+
+function pushHistory(history: boolean[][][][], snapshot: boolean[][]): boolean[][][][] {
+  if (history.length < MAX_HISTORY) {
+    return [...history, snapshot];
+  }
+  return [...history.slice(1), snapshot];
+}
+
+function makeGrid(height: number, width: number): boolean[][] {
+  return Array.from({ length: height }, () => Array<boolean>(width).fill(false));
+}
+
+export function reducer(state: MakerState, action: MakerAction): MakerState {
+  switch (action.type) {
+    case 'SET_DIMENSIONS': {
+      const { width, height } = action;
+      const cells = Array.from({ length: height }, (_, r) =>
+        Array.from({ length: width }, (_, c) => state.cells[r]?.[c] ?? false)
+      );
+      return { ...state, gridWidth: width, gridHeight: height, cells };
+    }
+    case 'TOGGLE_CELL': {
+      const cells = state.cells.map((row, r) =>
+        r === action.row ? row.map((cell, c) => (c === action.col ? !cell : cell)) : row
+      );
+      return { ...state, cells };
+    }
+    case 'COMMIT_HISTORY':
+      return { ...state, history: pushHistory(state.history, state.cells), future: [] };
+    case 'DRAG_CELL': {
+      const target = action.action === 'fill';
+      const cells = state.cells.map((row, r) =>
+        r === action.row ? row.map((cell, c) => (c === action.col ? target : cell)) : row
+      );
+      return { ...state, cells };
+    }
+    case 'RESET_GRID':
+      return { ...state, cells: makeGrid(state.gridHeight, state.gridWidth), history: pushHistory(state.history, state.cells), future: [] };
+    case 'UNDO': {
+      if (state.history.length === 0) return state;
+      const history = [...state.history];
+      const prev = history.pop()!;
+      const future = [state.cells, ...state.future];
+      return { ...state, cells: prev, history, future };
+    }
+    case 'REDO': {
+      if (state.future.length === 0) return state;
+      const future = [...state.future];
+      const next = future.shift()!;
+      const history = [...state.history, state.cells];
+      return { ...state, cells: next, history, future };
+    }
+    case 'LOAD_GRID': {
+      const gridHeight = action.cells.length;
+      const gridWidth = action.cells[0]?.length ?? 0;
+      return { ...state, cells: action.cells, gridWidth, gridHeight, history: [], future: [] };
+    }
+    case 'SET_SOLVE_PHASE':
+      return { ...state, solvePhase: action.phase };
+    case 'SET_CONVERT_OPEN':
+      return { ...state, isConvertOpen: action.open };
+    case 'SET_SOLVER_OPEN':
+      return { ...state, isSolverOpen: action.open };
+    default:
+      return state;
+  }
+}
+
+const DEFAULT_WIDTH = 20;
+const DEFAULT_HEIGHT = 20;
+
+export function makeInitialState(): MakerState {
+  return {
+    gridWidth: DEFAULT_WIDTH,
+    gridHeight: DEFAULT_HEIGHT,
+    cells: makeGrid(DEFAULT_HEIGHT, DEFAULT_WIDTH),
+    history: [],
+    future: [],
+    solvePhase: { phase: 'idle' },
+    isConvertOpen: false,
+    isSolverOpen: false,
+  };
+}
+
+export interface MakerStore extends MakerState {
+  rowClues: number[][];
+  colClues: number[][];
+  canUndo: boolean;
+  canRedo: boolean;
+  isExportable: boolean;
+  setDimensions(width: number, height: number): void;
+  toggleCell(row: number, col: number): void;
+  startDrag(row: number, col: number, action: 'fill' | 'erase'): void;
+  dragCell(row: number, col: number): void;
+  endDrag(): void;
+  resetGrid(): void;
+  undo(): void;
+  redo(): void;
+  loadGrid(cells: boolean[][]): void;
+  solve(): Promise<void>;
+  setConvertOpen(open: boolean): void;
+  setSolverOpen(open: boolean): void;
+}
+
+export function useMakerStore(): MakerStore {
+  const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
+  const wasm = useWasm();
+  const dragActionRef = useRef<'fill' | 'erase' | null>(null);
+
+  const rowClues = useMemo(() => computeRowClues(state.cells), [state.cells]);
+  const colClues = useMemo(() => computeColClues(state.cells), [state.cells]);
+  const rowCluesRef = useRef(rowClues);
+  rowCluesRef.current = rowClues;
+  const colCluesRef = useRef(colClues);
+  colCluesRef.current = colClues;
+  const canUndo = state.history.length > 0;
+  const canRedo = state.future.length > 0;
+  const isExportable = state.cells.some(row => row.some(c => c));
+
+  const setDimensions = useCallback((width: number, height: number) => {
+    dispatch({ type: 'SET_DIMENSIONS', width, height });
+  }, []);
+
+  const toggleCell = useCallback((row: number, col: number) => {
+    dispatch({ type: 'COMMIT_HISTORY' });
+    dispatch({ type: 'TOGGLE_CELL', row, col });
+  }, []);
+
+  const startDrag = useCallback((row: number, col: number, action: 'fill' | 'erase') => {
+    dispatch({ type: 'COMMIT_HISTORY' });
+    dragActionRef.current = action;
+    dispatch({ type: 'DRAG_CELL', row, col, action });
+  }, []);
+
+  const dragCell = useCallback((row: number, col: number) => {
+    if (dragActionRef.current !== null) {
+      dispatch({ type: 'DRAG_CELL', row, col, action: dragActionRef.current });
+    }
+  }, []);
+
+  const endDrag = useCallback(() => {
+    dragActionRef.current = null;
+  }, []);
+
+  const resetGrid = useCallback(() => {
+    dispatch({ type: 'RESET_GRID' });
+  }, []);
+
+  const undo = useCallback(() => {
+    dispatch({ type: 'UNDO' });
+  }, []);
+
+  const redo = useCallback(() => {
+    dispatch({ type: 'REDO' });
+  }, []);
+
+  const loadGrid = useCallback((cells: boolean[][]) => {
+    dispatch({ type: 'LOAD_GRID', cells });
+  }, []);
+
+  const solve = useCallback(async () => {
+    dispatch({ type: 'SET_SOLVER_OPEN', open: true });
+    dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'solving' } });
+    await new Promise(r => setTimeout(r, 0));
+    try {
+      const rClues = rowCluesRef.current;
+      const cClues = colCluesRef.current;
+      const puzzleJson = JSON.stringify({ row_clues: rClues, col_clues: cClues });
+      const resultJson = wasm.solve(puzzleJson);
+      const result = JSON.parse(resultJson) as SolveResult;
+      dispatch({ type: 'SET_SOLVE_PHASE', phase: { phase: 'done', result } });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      dispatch({
+        type: 'SET_SOLVE_PHASE',
+        phase: { phase: 'done', result: { status: 'error', solutions: [], errorMessage: message } },
+      });
+    }
+  }, [wasm]);
+
+  const setConvertOpen = useCallback((open: boolean) => {
+    dispatch({ type: 'SET_CONVERT_OPEN', open });
+  }, []);
+
+  const setSolverOpen = useCallback((open: boolean) => {
+    dispatch({ type: 'SET_SOLVER_OPEN', open });
+  }, []);
+
+  return {
+    ...state,
+    rowClues,
+    colClues,
+    canUndo,
+    canRedo,
+    isExportable,
+    setDimensions,
+    toggleCell,
+    startDrag,
+    dragCell,
+    endDrag,
+    resetGrid,
+    undo,
+    redo,
+    loadGrid,
+    solve,
+    setConvertOpen,
+    setSolverOpen,
+  };
+}

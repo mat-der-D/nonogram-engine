@@ -41,6 +41,15 @@ Conduct interactive quality review of technical design documents to ensure they 
 - Clear API boundaries and data structures
 - Input validation and error handling coverage
 
+### 5. UI Design Coverage (UI-heavy features)
+_Apply when the feature includes significant UI work (new screens, layout redesign, interactive components)._
+- Screen layout and component placement described (wireframe or ASCII diagram)
+- Responsive behavior specified (breakpoints and layout changes)
+- All interactive states covered (loading, error, disabled, hover, empty)
+- Component visual hierarchy matches the user workflow described in requirements
+- Modal/overlay behavior and open/close transitions specified
+- Per-button/control enable/disable conditions documented
+
 ## Review Process
 
 ### Step 1: Analyze
