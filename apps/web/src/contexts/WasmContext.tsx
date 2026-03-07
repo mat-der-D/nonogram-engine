@@ -20,12 +20,11 @@ export interface WasmContextValue {
 }
 
 const noop = () => JSON.stringify({ status: 'error', message: 'WASM not ready' });
-const noopImageToGrid = () => JSON.stringify({ status: 'error', message: 'WASM not ready' });
 
 const WasmContext = createContext<WasmContextValue>({
   status: { phase: 'loading' },
   solve: noop,
-  image_to_grid: noopImageToGrid,
+  image_to_grid: noop,
 });
 
 export function WasmProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -68,7 +67,7 @@ export function WasmProvider({ children }: { children: React.ReactNode }): React
     <WasmContext.Provider value={{
       status,
       solve: status.phase === 'ready' ? solveRef : noop,
-      image_to_grid: status.phase === 'ready' ? imageToGridRef : noopImageToGrid,
+      image_to_grid: status.phase === 'ready' ? imageToGridRef : noop,
     }}>
       {children}
     </WasmContext.Provider>

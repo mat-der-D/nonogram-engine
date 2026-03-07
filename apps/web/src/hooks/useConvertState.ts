@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useWasm } from '../contexts/WasmContext';
 
 export interface ConvertParams {
@@ -20,7 +20,6 @@ const DEFAULT_PARAMS: ConvertParams = {
 };
 
 export interface ConvertStateAndActions {
-  resizedBytes: Uint8Array | null;
   params: ConvertParams;
   previewGrid: boolean[][] | null;
   isConverting: boolean;
@@ -34,7 +33,6 @@ export interface ConvertStateAndActions {
 export function useConvertState(): ConvertStateAndActions {
   const wasm = useWasm();
 
-  const [resizedBytes, setResizedBytes] = useState<Uint8Array | null>(null);
   const [params, setParams] = useState<ConvertParams>(DEFAULT_PARAMS);
   const [previewGrid, setPreviewGrid] = useState<boolean[][] | null>(null);
   const [isConverting, setIsConverting] = useState(false);
@@ -128,30 +126,25 @@ export function useConvertState(): ConvertStateAndActions {
         gridHeight: Math.min(paramsRef.current.gridHeight, maxDimH),
       };
       setParams(newParams);
-      setResizedBytes(bytes);
       resizedBytesRef.current = bytes;
       triggerConvert(bytes, newParams);
     } catch (e) {
       setImageError(e instanceof Error ? e.message : '画像の読み込みに失敗しました');
-      setResizedBytes(null);
       resizedBytesRef.current = null;
     }
   }, [triggerConvert]);
 
   const updateParam = useCallback(<K extends keyof ConvertParams>(key: K, value: ConvertParams[K]) => {
-    setParams(prev => {
-      const next = { ...prev, [key]: value };
-      paramsRef.current = next;
-      if (resizedBytesRef.current) {
-        triggerConvert(resizedBytesRef.current, next);
-      }
-      return next;
-    });
+    const next = { ...paramsRef.current, [key]: value };
+    paramsRef.current = next;
+    setParams(next);
+    if (resizedBytesRef.current) {
+      triggerConvert(resizedBytesRef.current, next);
+    }
   }, [triggerConvert]);
 
   const reset = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setResizedBytes(null);
     resizedBytesRef.current = null;
     setParams(DEFAULT_PARAMS);
     paramsRef.current = DEFAULT_PARAMS;
@@ -163,8 +156,14 @@ export function useConvertState(): ConvertStateAndActions {
     setOriginalPreviewUrl(null);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (originalPreviewUrlRef.current) URL.revokeObjectURL(originalPreviewUrlRef.current);
+    };
+  }, []);
+
   return {
-    resizedBytes,
     params,
     previewGrid,
     isConverting,
