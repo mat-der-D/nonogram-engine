@@ -135,9 +135,9 @@
   - `isExportable` が全 `false` のグリッドで `false` を返すことを検証する
   - _Requirements: 4.1, 4.2, 4.3_
 
-- [ ] 8. 画像変換 UI を実装する（タスク 3・4 完了後に実行）
+- [x] 8. 画像変換 UI を実装する（タスク 3・4 完了後に実行）
 
-- [ ] 8.1 useConvertState を実装する
+- [x] 8.1 useConvertState を実装する
   - `ConvertState`（`resizedBytes`・`params`・`previewGrid`・`isConverting`・`imageError`・`originalPreviewUrl`）と `ConvertParams` インタフェースを定義する
   - `loadImage(file)` で Canvas 2D API を使って画像を 384×384 境界ボックスにアスペクト比を保ちながらリサイズし（384px 未満はスケールアップしない）、`canvas.toBlob('image/png')` → `Uint8Array` に変換して `resizedBytes` にキャッシュする
   - リサイズ後の画像幅・高さが 50px 未満の場合は `params.gridWidth`・`params.gridHeight` の上限を制限する
@@ -145,21 +145,21 @@
   - 画像読み込み失敗時は `imageError` にエラーメッセージを設定する
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.8_
 
-- [ ] 8.2 ConvertModal と子コンポーネントを実装する
+- [x] 8.2 ConvertModal と子コンポーネントを実装する
   - `ImageUploader`: ファイル選択 UI を実装し、`loadImage` を呼び出す。`imageError` が非 null の場合はエラーメッセージを表示する
   - `ParamSliders`: `grid_width`（5–50）・`grid_height`（5–50）・`smooth_strength`（0–5）・`threshold`（0–255）・`edge_strength`（0–1）・`noise_removal`（0–20）のスライダーを実装し、変換処理中はスライダーを無効化してスピナーを表示する
   - `PreviewComparison`: 元画像プレビューと生成済みドットグリッドプレビューを横並び（モバイルは縦積み）で表示する
   - `ConvertModal`: フルスクリーンオーバーレイで上記コンポーネントを統合し、「適用」ボタン押下時に `useMakerStore.loadGrid(previewGrid)` を呼び出してモーダルを閉じる。`useConvertState` はモーダル内でインスタンス化しモーダルを閉じると状態をクリアする
   - _Requirements: 2.1, 2.4, 2.6, 2.7, 2.8_
 
-- [ ] 9. MakerApp 統合と既存 UI の廃止
+- [x] 9. MakerApp 統合と既存 UI の廃止
 
-- [ ] 9.1 既存コンポーネントを廃止してソースを整理する
+- [x] 9.1 既存コンポーネントを廃止してソースを整理する
   - `ClueInputPanel`・`ModeToggle`・`GridDrawingPanel`・`SolveButton`・`ResultPanel`・`ImportExportPanel`・`PuzzleSizeInput`・`useNonogramStore` を削除する
   - 継続利用する `clueComputeUtils`・`clueParseUtils`・`PuzzleIOService` を確認し、不要になった参照を除去する
   - _Requirements: 7.2_
 
-- [ ] 9.2 MakerApp ルートコンポーネントを組み立てて全コンポーネントを統合する
+- [x] 9.2 MakerApp ルートコンポーネントを組み立てて全コンポーネントを統合する
   - `WasmProvider` → `MakerApp` の構造を構築し、`useMakerStore` から状態を取得して `EditorToolbar`・`EditorGrid`・`SolverModal`・`ConvertModal` に props を渡す
   - `isConvertOpen` に応じて `ConvertModal` をマウント・アンマウントし、`isSolverOpen` に応じて `SolverModal` の表示を制御する
   - `ExportService` を `EditorToolbar` の Export ドロップダウンと接続する
@@ -167,7 +167,7 @@
   - SPA として画面遷移なしに全機能へアクセスできることを確認する
   - _Requirements: 7.1, 7.3, 7.4_
 
-- [ ] 9.3 レスポンシブ CSS とインタラクション状態を実装する
+- [x] 9.3 レスポンシブ CSS とインタラクション状態を実装する
   - CSS カスタムプロパティでセルサイズを管理し、`@media (max-width: 767px)` でセルを 24px → 16px に縮小する
   - モバイルでツールバーをアイコンのみ表示に切り替えるメディアクエリを実装する
   - ConvertModal のプレビュー 2 列をモバイルで縦積みにする CSS を実装する
