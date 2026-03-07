@@ -41,8 +41,8 @@ export function EditorGrid({ store }: Props) {
   const rows = cells.length;
   const cols = cells[0]?.length ?? 0;
 
-  const maxRowClueLen = Math.max(1, ...rowClues.map(c => c.length));
-  const maxColClueLen = Math.max(1, ...colClues.map(c => c.length));
+  const maxRowClueLen = Math.ceil(cols / 2);
+  const maxColClueLen = Math.ceil(rows / 2);
 
   return (
     <div className="editor-grid-wrapper">
