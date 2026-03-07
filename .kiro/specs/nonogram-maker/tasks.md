@@ -81,7 +81,7 @@
   - `SET_DIMENSIONS` でグリッドリサイズ後も既存 `cells` が保持またはトリミングされることを検証する
   - _Requirements: 1.1, 1.4, 1.6_
 
-- [ ] 4. nonogram-wasm に画像変換 WASM バインディングを追加する
+- [x] 4. nonogram-wasm に画像変換 WASM バインディングを追加する
   - `nonogram_core::image_to_grid` を呼び出し、成功時は `nonogram_format::grid_to_json` で Grid を JSON にシリアライズして `{"status":"ok","grid":{...}}` を返す `image_to_grid` WASM 関数を実装する
   - 関数シグネチャ: `image_to_grid(image_bytes: &[u8], grid_width: u32, grid_height: u32, smooth_strength: f32, threshold: u8, edge_strength: f32, noise_removal: u32) -> String`
   - エラー時は既存の `error_json(message)` ユーティリティを再利用して `{"status":"error","message":"..."}` を返す

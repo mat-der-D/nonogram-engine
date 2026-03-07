@@ -1,6 +1,6 @@
 use crate::cell::Cell;
 use crate::grid::Grid;
-use image::{DynamicImage, GrayImage, ImageBuffer, Luma};
+use image::{DynamicImage, GrayImage, Luma};
 
 /// 画像変換パラメータ。
 #[derive(Debug, Clone)]
@@ -41,13 +41,8 @@ pub fn image_to_grid(image_bytes: &[u8], params: &ImageConvertParams) -> Result<
     // Step 3 は alpha_composite_to_gray 内で実施（RGBA -> グレースケール）
 
     // Step 4: ガウシアンブラー（smooth_strength = 0 のときスキップ）
-    let blur_buf: GrayImage;
-    let blurred: &GrayImage = if params.smooth_strength > 0.0 {
-        blur_buf = imageproc::filter::gaussian_blur_f32(&gray, params.smooth_strength);
-        &blur_buf
-    } else {
-        &gray
-    };
+    let blur_buf = apply_blur(&gray, params.smooth_strength);
+    let blurred = blur_buf.as_ref().unwrap_or(&gray);
 
     // Step 5: Canny エッジ検出
     let edges = imageproc::edges::canny(
@@ -87,6 +82,15 @@ pub fn image_to_grid(image_bytes: &[u8], params: &ImageConvertParams) -> Result<
     Ok(grid)
 }
 
+/// ガウシアンブラーを適用する。strength = 0 のときスキップして None を返す。
+fn apply_blur(img: &GrayImage, strength: f32) -> Option<GrayImage> {
+    if strength > 0.0 {
+        Some(imageproc::filter::gaussian_blur_f32(img, strength))
+    } else {
+        None
+    }
+}
+
 /// RGBA 画像を白背景にアルファ合成してグレースケールに変換する。
 fn alpha_composite_to_gray(img: &DynamicImage) -> GrayImage {
     let rgba = img.to_rgba8();
@@ -95,10 +99,8 @@ fn alpha_composite_to_gray(img: &DynamicImage) -> GrayImage {
     for (x, y, pixel) in rgba.enumerate_pixels() {
         let [r, g, b, a] = pixel.0;
         let alpha = a as f32 / 255.0;
-        let cr = r as f32 * alpha + 255.0 * (1.0 - alpha);
-        let cg = g as f32 * alpha + 255.0 * (1.0 - alpha);
-        let cb = b as f32 * alpha + 255.0 * (1.0 - alpha);
-        let luma = (0.299 * cr + 0.587 * cg + 0.114 * cb) as u8;
+        let composite = |ch: u8| ch as f32 * alpha + 255.0 * (1.0 - alpha);
+        let luma = (0.299 * composite(r) + 0.587 * composite(g) + 0.114 * composite(b)) as u8;
         gray.put_pixel(x, y, Luma([luma]));
     }
     gray
@@ -107,7 +109,7 @@ fn alpha_composite_to_gray(img: &DynamicImage) -> GrayImage {
 /// グレー画像とエッジ画像をマージする。
 fn merge_edge(gray: &GrayImage, edges: &GrayImage, edge_strength: f32) -> GrayImage {
     let (w, h) = gray.dimensions();
-    let mut merged: ImageBuffer<Luma<u8>, Vec<u8>> = GrayImage::new(w, h);
+    let mut merged = GrayImage::new(w, h);
     for y in 0..h {
         for x in 0..w {
             let gv = gray.get_pixel(x, y).0[0] as f32;

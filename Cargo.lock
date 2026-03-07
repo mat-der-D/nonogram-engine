@@ -2534,6 +2534,7 @@ dependencies = [
 name = "nonogram-wasm"
 version = "0.1.0"
 dependencies = [
+ "image",
  "nonogram-core",
  "nonogram-format",
  "serde",
