@@ -61,7 +61,19 @@ function PreviewComparison({ previewGrid }: { previewGrid: boolean[][] | null })
       {previewGrid ? (
         <div
           className="preview-dot-grid"
-          style={{ gridTemplateColumns: `repeat(${previewGrid[0]?.length ?? 1}, 8px)` }}
+          style={(() => {
+            const cols = previewGrid[0]?.length ?? 1;
+            const rows = previewGrid.length;
+            const GAP = 1;
+            const MAX_PX = 220;
+            const cellByWidth = Math.floor((MAX_PX - GAP * (cols - 1)) / cols);
+            const cellByHeight = Math.floor((MAX_PX - GAP * (rows - 1)) / rows);
+            const cellSize = Math.max(2, Math.min(cellByWidth, cellByHeight));
+            return {
+              gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
+              gridTemplateRows: `repeat(${rows}, ${cellSize}px)`,
+            };
+          })()}
         >
           {previewGrid.map((row, r) =>
             row.map((filled, c) => (
