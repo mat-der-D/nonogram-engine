@@ -8,6 +8,7 @@ mod solver;
 mod backtracker;
 mod propagator;
 mod validation;
+pub mod image;
 
 pub use cell::Cell;
 pub use clue::Clue;
@@ -18,6 +19,7 @@ pub use solver::csp::CspSolver;
 pub use solver::probing::ProbingSolver;
 pub use solver::{SolveResult, Solver};
 pub use validation::validate;
+pub use image::{image_to_grid, ImageConvertParams, ImageError};
 
 #[cfg(test)]
 mod tests {

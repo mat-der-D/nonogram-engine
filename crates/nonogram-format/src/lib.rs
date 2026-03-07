@@ -1,4 +1,4 @@
-use nonogram_core::{Clue, Puzzle, SolveResult};
+use nonogram_core::{Cell, Clue, Grid, Puzzle, SolveResult};
 use serde::{Deserialize, Serialize};
 
 /// nonogram-format における変換エラー。
@@ -15,6 +15,74 @@ pub enum FormatError {
     /// グリッドに Cell::Unknown が含まれており JSON にシリアライズできない。
     #[error("grid contains unknown cells")]
     UnknownCell,
+
+    /// cells の行数または列数が rows/cols と一致しない。
+    #[error("shape mismatch: expected {rows}x{cols}, got {actual_rows}x{actual_cols}")]
+    ShapeMismatch {
+        rows: usize,
+        cols: usize,
+        actual_rows: usize,
+        actual_cols: usize,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
+struct GridDto {
+    rows: usize,
+    cols: usize,
+    cells: Vec<Vec<bool>>,
+}
+
+fn grid_to_bool_matrix(grid: &Grid) -> Result<Vec<Vec<bool>>, FormatError> {
+    (0..grid.height())
+        .map(|r| {
+            grid.row(r)
+                .iter()
+                .map(|&cell| match cell {
+                    Cell::Filled => Ok(true),
+                    Cell::Blank => Ok(false),
+                    Cell::Unknown => Err(FormatError::UnknownCell),
+                })
+                .collect::<Result<Vec<bool>, _>>()
+        })
+        .collect()
+}
+
+/// Grid を JSON 文字列にシリアライズする。
+///
+/// # Errors
+/// - `FormatError::UnknownCell` — グリッドに `Cell::Unknown` が含まれる場合
+/// - `FormatError::Json` — serde_json シリアライズ失敗
+pub fn grid_to_json(grid: &Grid) -> Result<String, FormatError> {
+    let dto = GridDto { rows: grid.height(), cols: grid.width(), cells: grid_to_bool_matrix(grid)? };
+    Ok(serde_json::to_string(&dto)?)
+}
+
+/// JSON 文字列から Grid をデシリアライズする。
+///
+/// # Errors
+/// - `FormatError::Json` — 不正な JSON またはフィールド欠落
+/// - `FormatError::ShapeMismatch` — rows/cols と cells の次元が一致しない
+pub fn json_to_grid(json: &str) -> Result<Grid, FormatError> {
+    let dto: GridDto = serde_json::from_str(json)?;
+    let actual_rows = dto.cells.len();
+    let actual_cols = dto.cells.first().map_or(0, |r| r.len());
+    let bad_col = dto.cells.iter().map(|r| r.len()).find(|&l| l != dto.cols);
+    if actual_rows != dto.rows || bad_col.is_some() {
+        return Err(FormatError::ShapeMismatch {
+            rows: dto.rows,
+            cols: dto.cols,
+            actual_rows,
+            actual_cols: bad_col.unwrap_or(actual_cols),
+        });
+    }
+    let mut grid = Grid::new(dto.rows, dto.cols);
+    for (r, row) in dto.cells.iter().enumerate() {
+        for (c, &filled) in row.iter().enumerate() {
+            grid.set(r, c, Cell::from(filled));
+        }
+    }
+    Ok(grid)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -29,6 +97,12 @@ struct SolutionDto {
     solutions: Vec<Vec<Vec<bool>>>,
 }
 
+fn parse_clues(raw: Vec<Vec<u32>>) -> Result<Vec<Clue>, FormatError> {
+    raw.into_iter()
+        .map(|blocks| Clue::new(blocks).map_err(FormatError::InvalidPuzzle))
+        .collect()
+}
+
 /// JSON 文字列から Puzzle を生成する。
 ///
 /// # Errors
@@ -36,16 +110,8 @@ struct SolutionDto {
 /// - `FormatError::InvalidPuzzle` — `Puzzle` 構築エラー（`Error::EmptyClueList` など）
 pub fn puzzle_from_json(json: &str) -> Result<Puzzle, FormatError> {
     let dto: PuzzleDto = serde_json::from_str(json)?;
-    let row_clues = dto
-        .row_clues
-        .into_iter()
-        .map(|blocks| Clue::new(blocks).map_err(FormatError::InvalidPuzzle))
-        .collect::<Result<Vec<_>, _>>()?;
-    let col_clues = dto
-        .col_clues
-        .into_iter()
-        .map(|blocks| Clue::new(blocks).map_err(FormatError::InvalidPuzzle))
-        .collect::<Result<Vec<_>, _>>()?;
+    let row_clues = parse_clues(dto.row_clues)?;
+    let col_clues = parse_clues(dto.col_clues)?;
     let puzzle = Puzzle::new(row_clues, col_clues)?;
     Ok(puzzle)
 }
@@ -56,23 +122,6 @@ pub fn puzzle_from_json(json: &str) -> Result<Puzzle, FormatError> {
 /// - `FormatError::UnknownCell` — グリッドに `Cell::Unknown` が含まれる場合
 /// - `FormatError::Json` — serde_json シリアライズ失敗（実運用上は発生しない）
 pub fn result_to_json(result: &SolveResult) -> Result<String, FormatError> {
-    use nonogram_core::Cell;
-
-    fn grid_to_bool_matrix(grid: &nonogram_core::Grid) -> Result<Vec<Vec<bool>>, FormatError> {
-        (0..grid.height())
-            .map(|r| {
-                grid.row(r)
-                    .iter()
-                    .map(|&cell| match cell {
-                        Cell::Filled => Ok(true),
-                        Cell::Blank => Ok(false),
-                        Cell::Unknown => Err(FormatError::UnknownCell),
-                    })
-                    .collect::<Result<Vec<bool>, _>>()
-            })
-            .collect()
-    }
-
     let dto = match result {
         SolveResult::NoSolution => SolutionDto {
             status: "none",
@@ -109,7 +158,64 @@ pub fn generate_template(rows: usize, cols: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nonogram_core::{Cell, Grid, SolveResult};
+    use nonogram_core::{Grid, SolveResult};
+
+    // --- Task 1.2: grid_to_json / json_to_grid テスト ---
+
+    #[test]
+    fn grid_round_trip() {
+        let mut grid = Grid::new(2, 3);
+        grid.set(0, 0, Cell::Filled);
+        grid.set(0, 1, Cell::Blank);
+        grid.set(0, 2, Cell::Filled);
+        grid.set(1, 0, Cell::Blank);
+        grid.set(1, 1, Cell::Filled);
+        grid.set(1, 2, Cell::Blank);
+        let json = grid_to_json(&grid).unwrap();
+        let restored = json_to_grid(&json).unwrap();
+        assert_eq!(restored.height(), 2);
+        assert_eq!(restored.width(), 3);
+        assert_eq!(restored.get(0, 0), Cell::Filled);
+        assert_eq!(restored.get(0, 1), Cell::Blank);
+        assert_eq!(restored.get(1, 1), Cell::Filled);
+    }
+
+    #[test]
+    fn json_to_grid_shape_mismatch_rows() {
+        // rows=2 but cells has 3 rows
+        let json = r#"{"rows":2,"cols":2,"cells":[[true,false],[false,true],[true,true]]}"#;
+        let err = json_to_grid(json).unwrap_err();
+        assert!(matches!(err, FormatError::ShapeMismatch { rows: 2, cols: 2, actual_rows: 3, actual_cols: 2 }));
+    }
+
+    #[test]
+    fn json_to_grid_shape_mismatch_cols() {
+        // cols=2 but first row has 3 cells
+        let json = r#"{"rows":1,"cols":2,"cells":[[true,false,true]]}"#;
+        let err = json_to_grid(json).unwrap_err();
+        assert!(matches!(err, FormatError::ShapeMismatch { rows: 1, cols: 2, actual_rows: 1, actual_cols: 3 }));
+    }
+
+    #[test]
+    fn json_to_grid_invalid_json_returns_json_error() {
+        let err = json_to_grid("not valid json").unwrap_err();
+        assert!(matches!(err, FormatError::Json(_)));
+    }
+
+    #[test]
+    fn json_to_grid_missing_field_returns_json_error() {
+        // cols フィールド欠落
+        let json = r#"{"rows":1,"cells":[[true]]}"#;
+        let err = json_to_grid(json).unwrap_err();
+        assert!(matches!(err, FormatError::Json(_)));
+    }
+
+    #[test]
+    fn grid_to_json_unknown_cell_returns_error() {
+        let grid = Grid::new(1, 1); // Cell::Unknown のまま
+        let err = grid_to_json(&grid).unwrap_err();
+        assert!(matches!(err, FormatError::UnknownCell));
+    }
 
     // --- Task 2: puzzle_from_json 正常系テスト ---
 

@@ -10,24 +10,24 @@
 
 ---
 
-- [ ] 1. (P) nonogram-format に Grid JSON スキーマを追加する
+- [x] 1. (P) nonogram-format に Grid JSON スキーマを追加する
 
-- [ ] 1.1 (P) GridDto 型とシリアライズ関数を実装する
+- [x] 1.1 (P) GridDto 型とシリアライズ関数を実装する
   - `GridDto` 構造体（`rows: usize`、`cols: usize`、`cells: Vec<Vec<bool>>`）を定義し、`serde` の `Serialize`・`Deserialize` を導出する
   - `grid_to_json(grid: &Grid) -> Result<String, FormatError>` を実装する
   - `json_to_grid(json: &str) -> Result<Grid, FormatError>` を実装し、`rows`/`cols` と `cells` の次元不一致を検出する
   - `FormatError` に `ShapeMismatch { rows, cols, actual_rows, actual_cols }` バリアントを追加する
   - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-- [ ] 1.2 (P) Grid シリアライズのテストを実装する
+- [x] 1.2 (P) Grid シリアライズのテストを実装する
   - `grid_to_json` → `json_to_grid` のラウンドトリップを検証するテストを追加する
   - `rows`/`cols` と `cells` 次元が不一致な JSON を渡した際に `FormatError::ShapeMismatch` が返ることを検証する
   - 不正 JSON フォーマット（フィールド欠落など）で `FormatError::Json` が返ることを検証する
   - _Requirements: 5.3, 5.4_
 
-- [ ] 2. (P) nonogram-core に画像変換パイプラインを実装する
+- [x] 2. (P) nonogram-core に画像変換パイプラインを実装する
 
-- [ ] 2.1 (P) 画像デコードとアルファ合成・グレースケール変換を実装する
+- [x] 2.1 (P) 画像デコードとアルファ合成・グレースケール変換を実装する
   - `Cargo.toml` に `image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }` と `imageproc = "0.25"` を追加する
   - `ImageConvertParams` 構造体（`grid_width`、`grid_height`、`smooth_strength`、`threshold`、`edge_strength`、`noise_removal`）を定義する
   - `ImageError::Decode` エラー型を `thiserror` で定義する
@@ -35,21 +35,21 @@
   - モジュールファイル構成は `crates/nonogram-core/src/image.rs` + `crates/nonogram-core/src/image/convert.rs` とする（`mod.rs` 禁止規約に準拠）
   - _Requirements: 6.1, 6.4_
 
-- [ ] 2.2 (P) 変換パイプライン（ブラー〜ノイズ除去）の本体を実装する
+- [x] 2.2 (P) 変換パイプライン（ブラー〜ノイズ除去）の本体を実装する
   - `image_to_grid(image_bytes: &[u8], params: &ImageConvertParams) -> Result<Grid, ImageError>` の全パイプラインを実装する
   - パイプライン順序: グレースケール → ガウシアンブラー（sigma = `smooth_strength`、0 の場合スキップ）→ Canny エッジ検出（`low = threshold * 0.5`、`high = threshold as f32`）→ エッジマージ（`merged = gray * (1 - edge_strength) + edge * edge_strength`）→ セル平均ダウンサンプリング → 閾値処理（平均輝度 < threshold → `true`）→ ノイズ除去（4-connectivity connected components でサイズ < `noise_removal` の領域を除去）
   - `smooth_strength = 0` の場合はガウシアンブラーをスキップして処理時間を短縮する
   - _Requirements: 6.1, 6.2_
 
-- [ ] 2.3 (P) 画像変換関数のユニットテストを実装する
+- [x] 2.3 (P) 画像変換関数のユニットテストを実装する
   - 既知の白黒 PNG バイト列（テスト用ミニマム画像）に対して期待するグリッドが生成されることを検証するテストを追加する
   - `noise_removal = 0` と `noise_removal > 0` で出力差が生じることを検証する
   - 不正バイト列を渡した際に `Err(ImageError::Decode)` が返ることを検証する
   - _Requirements: 6.4, 6.5_
 
-- [ ] 3. (P) useMakerStore をグリッドエディタの中央ストアとして実装する
+- [x] 3. (P) useMakerStore をグリッドエディタの中央ストアとして実装する
 
-- [ ] 3.1 (P) グリッド状態管理と基本操作の reducer を実装する
+- [x] 3.1 (P) グリッド状態管理と基本操作の reducer を実装する
   - `MakerState` インタフェース（`gridWidth`、`gridHeight`、`cells`、`history`、`future`、`solvePhase`、`isConvertOpen`、`isSolverOpen`）を定義する
   - `MakerAction` 型（`SET_DIMENSIONS`、`TOGGLE_CELL`、`COMMIT_HISTORY`、`DRAG_CELL`、`RESET_GRID`、`LOAD_GRID`、`SET_SOLVE_PHASE`、`SET_CONVERT_OPEN`、`SET_SOLVER_OPEN`）を定義する
   - `useReducer` ベースで reducer を実装し、`SET_DIMENSIONS`・`TOGGLE_CELL`・`RESET_GRID`・`LOAD_GRID` を処理する
@@ -57,7 +57,7 @@
   - `setDimensions`・`toggleCell`・`resetGrid`・`loadGrid` の各アクション関数を公開する
   - _Requirements: 1.1, 1.2, 1.4, 1.5, 7.1, 7.4_
 
-- [ ] 3.2 (P) undo/redo 履歴スタックとドラッグ操作を実装する
+- [x] 3.2 (P) undo/redo 履歴スタックとドラッグ操作を実装する
   - `COMMIT_HISTORY` アクションで現在の `cells` を `history` にプッシュし `future` をクリアする（上限 100 ステップ超で最古エントリを破棄）
   - `UNDO` アクションで `history` 末尾を pop して `future` 先頭に現在 `cells` をプッシュする
   - `REDO` アクションで `future` 先頭を pop して `history` に現在 `cells` をプッシュする
@@ -66,7 +66,7 @@
   - `endDrag()` で `dragActionRef` をクリアする
   - _Requirements: 1.3, 1.6_
 
-- [ ] 3.3 ソルバー非同期実行とフェーズ管理を実装する
+- [x] 3.3 ソルバー非同期実行とフェーズ管理を実装する
   - `solve()` 非同期関数を実装し、`SET_SOLVER_OPEN: true` と `SET_SOLVE_PHASE: solving` を同時に dispatch してから `WasmContext.solve` を呼び出す
   - `computeRowClues`・`computeColClues` で現在の `cells` からクルーを算出し、puzzle JSON を生成してソルバーに渡す
   - WASM ソルバーの結果（unique/multiple/none/error）を解析して `SET_SOLVE_PHASE: done` を dispatch する
@@ -74,7 +74,7 @@
   - `setConvertOpen`・`setSolverOpen` の UI 状態制御関数を公開する
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-- [ ] 3.4 useMakerStore reducer のユニットテストを実装する
+- [x] 3.4 useMakerStore reducer のユニットテストを実装する
   - `COMMIT_HISTORY` + `TOGGLE_CELL` でドラッグ 1 回が 1 undo ステップになることを検証する
   - `UNDO`/`REDO` で `history`/`future` スタックが正しく操作されることを検証する
   - `RESET_GRID` で `cells` が全 `false` になり、`history` にスナップショットが追加されることを検証する

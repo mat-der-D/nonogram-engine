@@ -9,6 +9,12 @@ pub enum Cell {
     Blank,
 }
 
+impl From<bool> for Cell {
+    fn from(filled: bool) -> Self {
+        if filled { Cell::Filled } else { Cell::Blank }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
