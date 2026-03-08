@@ -1,25 +1,7 @@
-use std::cell::Cell as StdCell;
-use std::time::Instant;
-
 use crate::cell::Cell;
 use crate::grid::Grid;
 use crate::propagator::LinePropagator;
 use crate::puzzle::Puzzle;
-
-thread_local! {
-    static SEARCH_DEADLINE: StdCell<Option<Instant>> = StdCell::new(None);
-}
-
-/// Sets an optional deadline for backtracking search in the current thread.
-/// When the deadline is exceeded, [`Backtracker::search`] returns early with
-/// whatever solutions have been found so far.
-pub(crate) fn set_search_deadline(deadline: Option<Instant>) {
-    SEARCH_DEADLINE.with(|d| d.set(deadline));
-}
-
-fn is_deadline_exceeded() -> bool {
-    SEARCH_DEADLINE.with(|d| d.get().map(|inst| Instant::now() > inst).unwrap_or(false))
-}
 
 /// Crate-internal backtracking search engine.
 ///
@@ -38,7 +20,7 @@ impl Backtracker {
     /// Returns a vector of discovered solutions, containing at most
     /// `max_solutions` elements. Stops early once the limit is reached.
     pub(crate) fn search(grid: &mut Grid, puzzle: &Puzzle, max_solutions: usize) -> Vec<Grid> {
-        if max_solutions == 0 || is_deadline_exceeded() {
+        if max_solutions == 0 {
             return Vec::new();
         }
 

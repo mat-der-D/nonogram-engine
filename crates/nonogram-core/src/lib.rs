@@ -21,12 +21,6 @@ pub use solver::{SolveResult, Solver};
 pub use validation::validate;
 pub use image::{image_to_grid, ImageConvertParams, ImageError};
 
-/// Sets an optional deadline for backtracking search in the current thread.
-/// When exceeded, the backtracker returns early with solutions found so far.
-pub fn set_search_deadline(deadline: Option<std::time::Instant>) {
-    backtracker::set_search_deadline(deadline);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
