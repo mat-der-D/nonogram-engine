@@ -56,6 +56,7 @@ impl Solver for ProbingSolver {
 // Negation of literal `k` is `k ^ 1`.
 // ---------------------------------------------------------------------------
 
+#[derive(Debug)]
 struct ImplicationGraph {
     forward: Vec<Vec<u32>>,
     width: usize,
@@ -95,8 +96,7 @@ impl ImplicationGraph {
 
     /// BFS: all literals reachable from `start` (excluding `start`).
     fn consequences(&self, start: usize) -> Vec<usize> {
-        let n = self.forward.len();
-        let mut visited = vec![false; n];
+        let mut visited = vec![false; self.forward.len()];
         visited[start] = true;
         let mut queue = VecDeque::new();
         queue.push_back(start);
@@ -146,60 +146,52 @@ impl ProbingSolver {
             let filled_result = Self::probe_recording(grid, puzzle, r, c, Cell::Filled);
             let blank_result = Self::probe_recording(grid, puzzle, r, c, Cell::Blank);
 
-            match (filled_result, blank_result) {
+            let forced = match (&filled_result, &blank_result) {
                 (Err(_), Err(_)) => return Err(()),
+                (Err(_), Ok(_)) => Some(Cell::Blank),
+                (Ok(_), Err(_)) => Some(Cell::Filled),
+                (Ok(_), Ok(_)) => None,
+            };
 
-                (Err(_), Ok((_, _))) => {
-                    grid.set(r, c, Cell::Blank);
-                    Self::commit_literal(
-                        grid, puzzle, &graph, r, c, Cell::Blank, width,
-                        &mut probe_queue, &mut in_queue,
-                    )?;
+            if let Some(value) = forced {
+                grid.set(r, c, value);
+                Self::commit_literal(
+                    grid, puzzle, &graph, r, c, value,
+                    &mut probe_queue, &mut in_queue,
+                )?;
+            } else {
+                let (filled_grid, filled_changes) = filled_result.unwrap();
+                let (blank_grid, blank_changes) = blank_result.unwrap();
+                let lit_filled = graph.encode(r, c, Cell::Filled);
+                let lit_blank = graph.encode(r, c, Cell::Blank);
+                for (jr, jc, jv) in &filled_changes {
+                    graph.add(lit_filled, graph.encode(*jr, *jc, *jv));
+                }
+                for (jr, jc, jv) in &blank_changes {
+                    graph.add(lit_blank, graph.encode(*jr, *jc, *jv));
                 }
 
-                (Ok((_, _)), Err(_)) => {
-                    grid.set(r, c, Cell::Filled);
-                    Self::commit_literal(
-                        grid, puzzle, &graph, r, c, Cell::Filled, width,
-                        &mut probe_queue, &mut in_queue,
-                    )?;
-                }
-
-                (Ok((filled_grid, filled_changes)), Ok((blank_grid, blank_changes))) => {
-                    let lit_filled = graph.encode(r, c, Cell::Filled);
-                    let lit_blank = graph.encode(r, c, Cell::Blank);
-                    for (jr, jc, jv) in &filled_changes {
-                        graph.add(lit_filled, graph.encode(*jr, *jc, *jv));
-                    }
-                    for (jr, jc, jv) in &blank_changes {
-                        graph.add(lit_blank, graph.encode(*jr, *jc, *jv));
-                    }
-
-                    let mut committed: Vec<(usize, usize, Cell)> = Vec::new();
-                    for row2 in 0..height {
-                        for col2 in 0..width {
-                            if grid.get(row2, col2) == Cell::Unknown {
-                                let f = filled_grid.get(row2, col2);
-                                let b = blank_grid.get(row2, col2);
-                                if f != Cell::Unknown && f == b {
-                                    grid.set(row2, col2, f);
-                                    committed.push((row2, col2, f));
-                                }
+                let mut committed: Vec<(usize, usize, Cell)> = Vec::new();
+                for row2 in 0..height {
+                    for col2 in 0..width {
+                        if grid.get(row2, col2) == Cell::Unknown {
+                            let f = filled_grid.get(row2, col2);
+                            let b = blank_grid.get(row2, col2);
+                            if f != Cell::Unknown && f == b {
+                                grid.set(row2, col2, f);
+                                committed.push((row2, col2, f));
                             }
                         }
                     }
+                }
 
-                    if !committed.is_empty() {
-                        match LinePropagator::propagate(grid, puzzle) {
-                            Ok(_) => {}
-                            Err(_) => return Err(()),
-                        }
-                        for (jr, jc, jv) in committed {
-                            Self::commit_literal(
-                                grid, puzzle, &graph, jr, jc, jv, width,
-                                &mut probe_queue, &mut in_queue,
-                            )?;
-                        }
+                if !committed.is_empty() {
+                    LinePropagator::propagate(grid, puzzle).map_err(|_| ())?;
+                    for (jr, jc, jv) in committed {
+                        Self::commit_literal(
+                            grid, puzzle, &graph, jr, jc, jv,
+                            &mut probe_queue, &mut in_queue,
+                        )?;
                     }
                 }
             }
@@ -214,6 +206,7 @@ impl ProbingSolver {
 
     /// After a cell is committed, propagates its implications through the graph
     /// and enqueues contrapositive consequences for targeted re-probing.
+    #[allow(clippy::too_many_arguments)]
     fn commit_literal(
         grid: &mut Grid,
         puzzle: &Puzzle,
@@ -221,9 +214,8 @@ impl ProbingSolver {
         r: usize,
         c: usize,
         value: Cell,
-        width: usize,
         probe_queue: &mut VecDeque<(usize, usize)>,
-        in_queue: &mut Vec<bool>,
+        in_queue: &mut [bool],
     ) -> Result<(), ()> {
         let lit = graph.encode(r, c, value);
 
@@ -238,12 +230,10 @@ impl ProbingSolver {
             }
         }
 
-        match LinePropagator::propagate(grid, puzzle) {
-            Ok(_) => {}
-            Err(_) => return Err(()),
-        }
+        LinePropagator::propagate(grid, puzzle).map_err(|_| ())?;
 
         // Enqueue cells reachable from the opposite literal for re-probing.
+        let width = graph.width;
         for cons in graph.consequences(lit ^ 1) {
             let (cr, cc, _) = graph.decode(cons);
             if grid.get(cr, cc) == Cell::Unknown && !in_queue[cr * width + cc] {
@@ -256,6 +246,7 @@ impl ProbingSolver {
     }
 
     /// Probes a cell and records cells that changed from Unknown.
+    #[allow(clippy::type_complexity)]
     fn probe_recording(
         grid: &Grid,
         puzzle: &Puzzle,
@@ -378,18 +369,10 @@ impl ProbingSolver {
 
                 match (can_filled, can_blank) {
                     (false, false) => return Err(()),
-                    (true, false) => {
+                    (true, false) | (false, true) => {
+                        let forced = if can_filled { Cell::Filled } else { Cell::Blank };
                         undo.push((r, c, Cell::Unknown));
-                        grid.set(r, c, Cell::Filled);
-                        LinePropagator::propagate_from_cell_and_record(
-                            grid, puzzle, r, c, undo,
-                        )
-                        .map_err(|_| ())?;
-                        progress = true;
-                    }
-                    (false, true) => {
-                        undo.push((r, c, Cell::Unknown));
-                        grid.set(r, c, Cell::Blank);
+                        grid.set(r, c, forced);
                         LinePropagator::propagate_from_cell_and_record(
                             grid, puzzle, r, c, undo,
                         )
@@ -425,11 +408,11 @@ impl ProbingSolver {
             .collect();
 
         let mut best: Option<(usize, usize, usize)> = None;
-        for r in 0..grid.height() {
-            for c in 0..grid.width() {
+        for (r, &row_count) in row_counts.iter().enumerate() {
+            for (c, &col_count) in col_counts.iter().enumerate() {
                 if grid.get(r, c) == Cell::Unknown {
-                    let score = row_counts[r] + col_counts[c];
-                    if best.map_or(true, |(_, _, s)| score < s) {
+                    let score = row_count + col_count;
+                    if best.is_none_or(|(_, _, s)| score < s) {
                         best = Some((r, c, score));
                     }
                 }
