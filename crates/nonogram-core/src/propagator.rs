@@ -180,27 +180,110 @@ impl LinePropagator {
     /// grid was unchanged, or `Err(Contradiction)` if an inconsistency
     /// is detected.
     pub(crate) fn propagate(grid: &mut Grid, puzzle: &Puzzle) -> Result<bool, Contradiction> {
+        let height = puzzle.height();
+        let width = puzzle.width();
+        let mut row_dirty = vec![true; height];
+        let mut col_dirty = vec![true; width];
+        Self::propagate_core(grid, puzzle, &mut row_dirty, &mut col_dirty, |_, _, _| {})
+    }
+
+    /// Runs constraint propagation starting from a single changed cell.
+    ///
+    /// Only the row and column containing `(changed_row, changed_col)` are
+    /// initially enqueued; further rows/columns are added incrementally as
+    /// cells are determined. This is significantly faster than [`propagate`]
+    /// when only one cell has changed (e.g. after a backtracking assignment).
+    pub(crate) fn propagate_from_cell(
+        grid: &mut Grid,
+        puzzle: &Puzzle,
+        changed_row: usize,
+        changed_col: usize,
+    ) -> Result<bool, Contradiction> {
+        let height = puzzle.height();
+        let width = puzzle.width();
+        let mut row_dirty = vec![false; height];
+        let mut col_dirty = vec![false; width];
+        row_dirty[changed_row] = true;
+        col_dirty[changed_col] = true;
+        Self::propagate_core(grid, puzzle, &mut row_dirty, &mut col_dirty, |_, _, _| {})
+    }
+
+    /// Like [`propagate_from_cell`], but records every cell change as
+    /// `(row, col, old_value)` into `undo`, enabling cheap rollback.
+    pub(crate) fn propagate_from_cell_and_record(
+        grid: &mut Grid,
+        puzzle: &Puzzle,
+        changed_row: usize,
+        changed_col: usize,
+        undo: &mut Vec<(usize, usize, Cell)>,
+    ) -> Result<bool, Contradiction> {
+        let height = puzzle.height();
+        let width = puzzle.width();
+        let mut row_dirty = vec![false; height];
+        let mut col_dirty = vec![false; width];
+        row_dirty[changed_row] = true;
+        col_dirty[changed_col] = true;
+        Self::propagate_core(grid, puzzle, &mut row_dirty, &mut col_dirty, |r, c, old| {
+            undo.push((r, c, old));
+        })
+    }
+
+    /// Core dirty-flag propagation loop.
+    ///
+    /// `record` is called with `(row, col, old_value)` for each cell that
+    /// changes. Pass a no-op closure when undo tracking is not needed; the
+    /// compiler will eliminate it entirely.
+    fn propagate_core<F>(
+        grid: &mut Grid,
+        puzzle: &Puzzle,
+        row_dirty: &mut Vec<bool>,
+        col_dirty: &mut Vec<bool>,
+        mut record: F,
+    ) -> Result<bool, Contradiction>
+    where
+        F: FnMut(usize, usize, Cell),
+    {
+        let height = puzzle.height();
+        let width = puzzle.width();
+        let mut col_buf = vec![Cell::Unknown; height];
         let mut any_changed = false;
+
         loop {
             let mut changed = false;
 
-            for r in 0..puzzle.height() {
-                let line: Vec<Cell> = grid.row(r).to_vec();
-                let result = Self::solve_line(&line, &puzzle.row_clues()[r])?;
-                for c in 0..puzzle.width() {
-                    if result[c] != line[c] {
+            for r in 0..height {
+                if !std::mem::take(&mut row_dirty[r]) {
+                    continue;
+                }
+                // Borrow row as a slice for solve_line (no allocation).
+                let result = {
+                    let line = grid.row(r);
+                    Self::solve_line(line, &puzzle.row_clues()[r])?
+                };
+                for c in 0..width {
+                    let old = grid.get(r, c);
+                    if result[c] != old {
+                        record(r, c, old);
                         grid.set(r, c, result[c]);
+                        col_dirty[c] = true;
                         changed = true;
                     }
                 }
             }
 
-            for c in 0..puzzle.width() {
-                let line = grid.col(c);
-                let result = Self::solve_line(&line, &puzzle.col_clues()[c])?;
-                for r in 0..puzzle.height() {
-                    if result[r] != line[r] {
+            for c in 0..width {
+                if !std::mem::take(&mut col_dirty[c]) {
+                    continue;
+                }
+                // Fill reusable column buffer (no allocation).
+                grid.fill_col(c, &mut col_buf);
+                let result = Self::solve_line(&col_buf, &puzzle.col_clues()[c])?;
+                for r in 0..height {
+                    let old = col_buf[r];
+                    if result[r] != old {
+                        record(r, c, old);
                         grid.set(r, c, result[r]);
+                        row_dirty[r] = true;
                         changed = true;
                     }
                 }
@@ -212,6 +295,7 @@ impl LinePropagator {
                 break;
             }
         }
+
         Ok(any_changed)
     }
 }

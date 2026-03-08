@@ -13,9 +13,13 @@ pub(crate) struct Backtracker;
 impl Backtracker {
     /// Performs exhaustive search on the given grid.
     ///
+    /// Uses an undo-log to avoid cloning the grid at each node; the grid is
+    /// shared mutably across the recursion and rolled back after each branch.
+    /// A clone is only made when a solution is actually found.
+    ///
     /// Returns a vector of discovered solutions, containing at most
     /// `max_solutions` elements. Stops early once the limit is reached.
-    pub(crate) fn search(grid: &Grid, puzzle: &Puzzle, max_solutions: usize) -> Vec<Grid> {
+    pub(crate) fn search(grid: &mut Grid, puzzle: &Puzzle, max_solutions: usize) -> Vec<Grid> {
         if max_solutions == 0 {
             return Vec::new();
         }
@@ -32,19 +36,29 @@ impl Backtracker {
         let mut solutions = Vec::new();
 
         for &hypothesis in &[Cell::Filled, Cell::Blank] {
-            let mut trial = grid.clone();
-            trial.set(row, col, hypothesis);
-            match LinePropagator::propagate(&mut trial, puzzle) {
+            // Record the cell we are about to overwrite, then apply hypothesis.
+            let mut undo: Vec<(usize, usize, Cell)> = vec![(row, col, grid.get(row, col))];
+            grid.set(row, col, hypothesis);
+
+            match LinePropagator::propagate_from_cell_and_record(
+                grid, puzzle, row, col, &mut undo,
+            ) {
                 Ok(_) => {
                     let remaining = max_solutions - solutions.len();
-                    let found = Self::search(&trial, puzzle, remaining);
+                    let found = Self::search(grid, puzzle, remaining);
                     solutions.extend(found);
-                    if solutions.len() >= max_solutions {
-                        solutions.truncate(max_solutions);
-                        return solutions;
-                    }
                 }
-                Err(_) => continue,
+                Err(_) => {}
+            }
+
+            // Restore grid to its state before this hypothesis.
+            for &(r, c, old) in undo.iter().rev() {
+                grid.set(r, c, old);
+            }
+
+            if solutions.len() >= max_solutions {
+                solutions.truncate(max_solutions);
+                return solutions;
             }
         }
 
@@ -106,7 +120,7 @@ mod tests {
         let mut grid = Grid::new(2, 2);
         let _ = LinePropagator::propagate(&mut grid, &puzzle);
 
-        let solutions = Backtracker::search(&grid, &puzzle, 2);
+        let solutions = Backtracker::search(&mut grid, &puzzle, 2);
         assert_eq!(solutions.len(), 1);
 
         let sol = &solutions[0];
@@ -129,7 +143,7 @@ mod tests {
         let mut grid = Grid::new(2, 2);
         let _ = LinePropagator::propagate(&mut grid, &puzzle);
 
-        let solutions = Backtracker::search(&grid, &puzzle, 2);
+        let solutions = Backtracker::search(&mut grid, &puzzle, 2);
         assert_eq!(solutions.len(), 2);
         assert_ne!(solutions[0], solutions[1]);
     }
@@ -140,10 +154,10 @@ mod tests {
         // Row wants both filled, but both columns want blank -> contradiction
         let puzzle =
             crate::puzzle::Puzzle::new(vec![clue(&[2])], vec![clue(&[]), clue(&[])]).unwrap();
-        let grid = Grid::new(1, 2);
+        let mut grid = Grid::new(1, 2);
 
         // Propagation should detect contradiction, so search from initial grid.
-        let solutions = Backtracker::search(&grid, &puzzle, 2);
+        let solutions = Backtracker::search(&mut grid, &puzzle, 2);
         assert!(solutions.is_empty());
     }
 
@@ -152,7 +166,7 @@ mod tests {
         let mut grid = Grid::new(1, 1);
         grid.set(0, 0, Cell::Filled);
         let puzzle = crate::puzzle::Puzzle::new(vec![clue(&[1])], vec![clue(&[1])]).unwrap();
-        let solutions = Backtracker::search(&grid, &puzzle, 2);
+        let solutions = Backtracker::search(&mut grid, &puzzle, 2);
         assert_eq!(solutions.len(), 1);
     }
 }
