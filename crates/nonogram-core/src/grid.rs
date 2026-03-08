@@ -78,8 +78,8 @@ impl Grid {
     /// # Panics
     /// Panics if `index >= width` or `buf.len() < height`.
     pub(crate) fn fill_col(&self, index: usize, buf: &mut [Cell]) {
-        for r in 0..self.height {
-            buf[r] = self.cells[r * self.width + index];
+        for (r, cell) in buf.iter_mut().enumerate().take(self.height) {
+            *cell = self.cells[r * self.width + index];
         }
     }
 

@@ -236,8 +236,8 @@ impl LinePropagator {
     fn propagate_core<F>(
         grid: &mut Grid,
         puzzle: &Puzzle,
-        row_dirty: &mut Vec<bool>,
-        col_dirty: &mut Vec<bool>,
+        row_dirty: &mut [bool],
+        col_dirty: &mut [bool],
         mut record: F,
     ) -> Result<bool, Contradiction>
     where
@@ -251,8 +251,8 @@ impl LinePropagator {
         loop {
             let mut changed = false;
 
-            for r in 0..height {
-                if !std::mem::take(&mut row_dirty[r]) {
+            for (r, dirty) in row_dirty.iter_mut().enumerate() {
+                if !std::mem::take(dirty) {
                     continue;
                 }
                 // Borrow row as a slice for solve_line (no allocation).
@@ -271,8 +271,8 @@ impl LinePropagator {
                 }
             }
 
-            for c in 0..width {
-                if !std::mem::take(&mut col_dirty[c]) {
+            for (c, dirty) in col_dirty.iter_mut().enumerate() {
+                if !std::mem::take(dirty) {
                     continue;
                 }
                 // Fill reusable column buffer (no allocation).
