@@ -1,5 +1,6 @@
 import { useReducer, useCallback, useRef, useMemo } from 'react';
 import { computeRowClues, computeColClues } from '../utils/clueComputeUtils';
+import { PuzzleIOService } from '../services/PuzzleIOService';
 
 export type SolvePhase =
   | { phase: 'idle' }
@@ -13,6 +14,12 @@ export interface SolveResult {
   errorMessage?: string;
 }
 
+export type ImportPhase =
+  | { phase: 'idle' }
+  | { phase: 'solving' }
+  | { phase: 'done'; status: 'success-puzzle' | 'success-solution' | 'non-unique' | 'no-solution' | 'error'; message?: string }
+  | { phase: 'cancelled' };
+
 export interface MakerState {
   gridWidth: number;
   gridHeight: number;
@@ -22,6 +29,8 @@ export interface MakerState {
   solvePhase: SolvePhase;
   isConvertOpen: boolean;
   isSolverOpen: boolean;
+  isImportOpen: boolean;
+  importPhase: ImportPhase;
 }
 
 export type MakerAction =
@@ -35,7 +44,9 @@ export type MakerAction =
   | { type: 'LOAD_GRID'; cells: boolean[][] }
   | { type: 'SET_SOLVE_PHASE'; phase: SolvePhase }
   | { type: 'SET_CONVERT_OPEN'; open: boolean }
-  | { type: 'SET_SOLVER_OPEN'; open: boolean };
+  | { type: 'SET_SOLVER_OPEN'; open: boolean }
+  | { type: 'SET_IMPORT_OPEN'; open: boolean }
+  | { type: 'SET_IMPORT_PHASE'; phase: ImportPhase };
 
 const MAX_HISTORY = 100;
 
@@ -101,6 +112,10 @@ export function reducer(state: MakerState, action: MakerAction): MakerState {
       return { ...state, isConvertOpen: action.open };
     case 'SET_SOLVER_OPEN':
       return { ...state, isSolverOpen: action.open };
+    case 'SET_IMPORT_OPEN':
+      return { ...state, isImportOpen: action.open };
+    case 'SET_IMPORT_PHASE':
+      return { ...state, importPhase: action.phase };
     default:
       return state;
   }
@@ -119,6 +134,8 @@ export function makeInitialState(): MakerState {
     solvePhase: { phase: 'idle' },
     isConvertOpen: false,
     isSolverOpen: false,
+    isImportOpen: false,
+    importPhase: { phase: 'idle' },
   };
 }
 
@@ -141,12 +158,17 @@ export interface MakerStore extends MakerState {
   cancelSolve(): void;
   setConvertOpen(open: boolean): void;
   setSolverOpen(open: boolean): void;
+  importPuzzleJson(file: File): void;
+  importSolutionJson(file: File): void;
+  cancelImportSolve(): void;
+  setImportOpen(open: boolean): void;
 }
 
 export function useMakerStore(): MakerStore {
   const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
   const dragActionRef = useRef<'fill' | 'erase' | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const importWorkerRef = useRef<Worker | null>(null);
 
   const rowClues = useMemo(() => computeRowClues(state.cells), [state.cells]);
   const colClues = useMemo(() => computeColClues(state.cells), [state.cells]);
@@ -252,6 +274,76 @@ export function useMakerStore(): MakerStore {
     dispatch({ type: 'SET_SOLVER_OPEN', open });
   }, []);
 
+  const setImportOpen = useCallback((open: boolean) => {
+    dispatch({ type: 'SET_IMPORT_OPEN', open });
+  }, []);
+
+  const importPuzzleJson = useCallback((file: File) => {
+    dispatch({ type: 'SET_IMPORT_OPEN', open: true });
+    dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'solving' } });
+
+    PuzzleIOService.importPuzzle(file).then((puzzleJson) => {
+      const jsonStr = JSON.stringify({
+        row_clues: puzzleJson.row_clues,
+        col_clues: puzzleJson.col_clues,
+      });
+
+      const worker = new Worker(
+        new URL('../workers/solveWorker.ts', import.meta.url),
+        { type: 'module' }
+      );
+      importWorkerRef.current = worker;
+
+      worker.onmessage = (event) => {
+        importWorkerRef.current = null;
+        worker.terminate();
+        const msg = event.data;
+        if (msg.type === 'result') {
+          const result = JSON.parse(msg.resultJson) as SolveResult;
+          if (result.status === 'unique') {
+            dispatch({ type: 'LOAD_GRID', cells: result.solutions[0] });
+            dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'success-puzzle' } });
+          } else if (result.status === 'multiple') {
+            dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'non-unique' } });
+          } else {
+            dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'no-solution' } });
+          }
+        } else {
+          dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'error', message: msg.message ?? '不明なエラーが発生しました' } });
+        }
+      };
+
+      worker.onerror = (event) => {
+        importWorkerRef.current = null;
+        worker.terminate();
+        dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'error', message: event.message ?? 'Worker error' } });
+      };
+
+      worker.postMessage({ type: 'solve', puzzleJson: jsonStr });
+    }).catch((err: { message?: string }) => {
+      dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'error', message: err?.message ?? 'ファイルの読み込みに失敗しました' } });
+    });
+  }, []);
+
+  const importSolutionJson = useCallback((file: File) => {
+    dispatch({ type: 'SET_IMPORT_OPEN', open: true });
+
+    PuzzleIOService.importSolutionGrid(file).then((cells) => {
+      dispatch({ type: 'LOAD_GRID', cells });
+      dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'success-solution' } });
+    }).catch((err: { message?: string }) => {
+      dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'done', status: 'error', message: err?.message ?? 'ファイルの読み込みに失敗しました' } });
+    });
+  }, []);
+
+  const cancelImportSolve = useCallback(() => {
+    if (importWorkerRef.current) {
+      importWorkerRef.current.terminate();
+      importWorkerRef.current = null;
+    }
+    dispatch({ type: 'SET_IMPORT_PHASE', phase: { phase: 'cancelled' } });
+  }, []);
+
   return {
     ...state,
     rowClues,
@@ -272,5 +364,9 @@ export function useMakerStore(): MakerStore {
     cancelSolve,
     setConvertOpen,
     setSolverOpen,
+    importPuzzleJson,
+    importSolutionJson,
+    cancelImportSolve,
+    setImportOpen,
   };
 }

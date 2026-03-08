@@ -18,6 +18,16 @@ export const ExportService = {
     triggerDownload(url, filename);
   },
 
+  async exportPuzzleOnlyPng(
+    cells: boolean[][],
+    rowClues: number[][],
+    colClues: number[][],
+    filename = 'nonogram-puzzle.png'
+  ): Promise<void> {
+    const blankCells = cells.map(row => row.map(() => false));
+    return this.exportPng(blankCells, rowClues, colClues, filename);
+  },
+
   async exportPng(
     cells: boolean[][],
     rowClues: number[][],
