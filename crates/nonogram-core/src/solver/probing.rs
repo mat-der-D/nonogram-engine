@@ -78,7 +78,11 @@ impl ImplicationGraph {
     #[inline]
     fn decode(&self, idx: usize) -> (usize, usize, Cell) {
         let cell_idx = idx >> 1;
-        let value = if idx & 1 == 0 { Cell::Filled } else { Cell::Blank };
+        let value = if idx & 1 == 0 {
+            Cell::Filled
+        } else {
+            Cell::Blank
+        };
         (cell_idx / self.width, cell_idx % self.width, value)
     }
 
@@ -381,12 +385,15 @@ impl ProbingSolver {
                 break;
             }
 
-            let mut branch_undo: Vec<(usize, usize, Cell)> =
-                vec![(row, col, grid.get(row, col))];
+            let mut branch_undo: Vec<(usize, usize, Cell)> = vec![(row, col, grid.get(row, col))];
             grid.set(row, col, hypothesis);
 
             if LinePropagator::propagate_from_cell_and_record(
-                grid, puzzle, row, col, &mut branch_undo,
+                grid,
+                puzzle,
+                row,
+                col,
+                &mut branch_undo,
             )
             .is_ok()
             {
@@ -427,13 +434,15 @@ impl ProbingSolver {
                 match (can_filled, can_blank) {
                     (false, false) => return Err(()),
                     (true, false) | (false, true) => {
-                        let forced = if can_filled { Cell::Filled } else { Cell::Blank };
+                        let forced = if can_filled {
+                            Cell::Filled
+                        } else {
+                            Cell::Blank
+                        };
                         undo.push((r, c, Cell::Unknown));
                         grid.set(r, c, forced);
-                        LinePropagator::propagate_from_cell_and_record(
-                            grid, puzzle, r, c, undo,
-                        )
-                        .map_err(|_| ())?;
+                        LinePropagator::propagate_from_cell_and_record(grid, puzzle, r, c, undo)
+                            .map_err(|_| ())?;
                         progress = true;
                     }
                     (true, true) => {} // Both valid, skip.
@@ -498,26 +507,78 @@ mod tests {
         use crate::propagator::LinePropagator;
 
         let row_data: &[&[u32]] = &[
-            &[], &[], &[4, 3], &[1, 1, 1], &[1, 1, 1], &[1, 1, 2, 1],
-            &[1, 1, 1, 1], &[1, 1, 1, 1], &[1, 1, 1, 1], &[1, 1, 1],
-            &[1, 2, 1], &[1, 2], &[1, 1], &[3, 1], &[1, 1, 1],
-            &[2, 1, 1, 1], &[2, 4, 1], &[2, 5, 1], &[1, 2, 1], &[1, 1, 1],
-            &[11, 1], &[11, 1], &[1, 1, 3], &[1, 1, 1, 1], &[1, 1, 1],
-            &[1, 1, 1], &[1, 2, 6], &[2, 7], &[1, 2], &[17],
+            &[],
+            &[],
+            &[4, 3],
+            &[1, 1, 1],
+            &[1, 1, 1],
+            &[1, 1, 2, 1],
+            &[1, 1, 1, 1],
+            &[1, 1, 1, 1],
+            &[1, 1, 1, 1],
+            &[1, 1, 1],
+            &[1, 2, 1],
+            &[1, 2],
+            &[1, 1],
+            &[3, 1],
+            &[1, 1, 1],
+            &[2, 1, 1, 1],
+            &[2, 4, 1],
+            &[2, 5, 1],
+            &[1, 2, 1],
+            &[1, 1, 1],
+            &[11, 1],
+            &[11, 1],
+            &[1, 1, 3],
+            &[1, 1, 1, 1],
+            &[1, 1, 1],
+            &[1, 1, 1],
+            &[1, 2, 6],
+            &[2, 7],
+            &[1, 2],
+            &[17],
         ];
         let col_data: &[&[u32]] = &[
-            &[], &[1], &[1, 1], &[2, 1], &[3, 3, 1], &[1, 3, 2, 1],
-            &[1, 5, 1], &[2, 2, 1], &[1, 2, 1], &[1, 1, 2, 1], &[8, 2, 1],
-            &[1, 2, 2, 1], &[1, 3, 2, 1], &[1, 1, 6, 1], &[1, 7, 2, 2, 1],
-            &[1, 1, 1, 3, 1], &[1, 1, 5, 1], &[1, 4, 2, 1], &[1, 1, 1, 1],
-            &[2, 1, 2], &[5, 1, 2], &[1, 1], &[1, 1], &[1],
-            &[2, 1], &[2, 2, 1], &[6, 1], &[1, 1], &[4], &[],
+            &[],
+            &[1],
+            &[1, 1],
+            &[2, 1],
+            &[3, 3, 1],
+            &[1, 3, 2, 1],
+            &[1, 5, 1],
+            &[2, 2, 1],
+            &[1, 2, 1],
+            &[1, 1, 2, 1],
+            &[8, 2, 1],
+            &[1, 2, 2, 1],
+            &[1, 3, 2, 1],
+            &[1, 1, 6, 1],
+            &[1, 7, 2, 2, 1],
+            &[1, 1, 1, 3, 1],
+            &[1, 1, 5, 1],
+            &[1, 4, 2, 1],
+            &[1, 1, 1, 1],
+            &[2, 1, 2],
+            &[5, 1, 2],
+            &[1, 1],
+            &[1, 1],
+            &[1],
+            &[2, 1],
+            &[2, 2, 1],
+            &[6, 1],
+            &[1, 1],
+            &[4],
+            &[],
         ];
 
-        let row_clues: Vec<Clue> =
-            row_data.iter().map(|b| Clue::new(b.to_vec()).unwrap()).collect();
-        let col_clues: Vec<Clue> =
-            col_data.iter().map(|b| Clue::new(b.to_vec()).unwrap()).collect();
+        let row_clues: Vec<Clue> = row_data
+            .iter()
+            .map(|b| Clue::new(b.to_vec()).unwrap())
+            .collect();
+        let col_clues: Vec<Clue> = col_data
+            .iter()
+            .map(|b| Clue::new(b.to_vec()).unwrap())
+            .collect();
         let puzzle = crate::puzzle::Puzzle::new(row_clues, col_clues).unwrap();
 
         let count_unknown = |g: &Grid| {
@@ -545,7 +606,8 @@ mod tests {
         let after_p1 = count_unknown(&grid);
         eprintln!(
             "Phase 1 (線解き)       : Unknown {}/{} ({:.1}%)  経過 {:?}",
-            after_p1, total,
+            after_p1,
+            total,
             after_p1 as f64 / total as f64 * 100.0,
             t1.elapsed()
         );
@@ -567,7 +629,8 @@ mod tests {
         let after_p2 = count_unknown(&grid);
         eprintln!(
             "Phase 2 (FP2)          : Unknown {}/{} ({:.1}%)  経過 {:?}",
-            after_p2, total,
+            after_p2,
+            total,
             after_p2 as f64 / total as f64 * 100.0,
             t2.elapsed()
         );
@@ -606,9 +669,7 @@ mod tests {
             }
             (SolveResult::MultipleSolutions(_), SolveResult::MultipleSolutions(_)) => {}
             _ => {
-                panic!(
-                    "results differ: CspSolver={csp_result:?}, ProbingSolver={probing_result:?}"
-                )
+                panic!("results differ: CspSolver={csp_result:?}, ProbingSolver={probing_result:?}")
             }
         }
     }

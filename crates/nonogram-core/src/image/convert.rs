@@ -136,13 +136,21 @@ fn cell_average(img: &GrayImage, row: usize, col: usize, grid_w: usize, grid_h: 
             count += 1;
         }
     }
-    if count > 0 { sum as f32 / count as f32 } else { 255.0 }
+    if count > 0 {
+        sum as f32 / count as f32
+    } else {
+        255.0
+    }
 }
 
 /// グリッドセルごとの平均輝度を計算する。
 fn downsample(img: &GrayImage, grid_w: usize, grid_h: usize) -> Vec<Vec<f32>> {
     (0..grid_h)
-        .map(|row| (0..grid_w).map(|col| cell_average(img, row, col, grid_w, grid_h)).collect())
+        .map(|row| {
+            (0..grid_w)
+                .map(|col| cell_average(img, row, col, grid_w, grid_h))
+                .collect()
+        })
         .collect()
 }
 
@@ -171,7 +179,12 @@ fn flood_fill(
 }
 
 /// 4-connectivity の連結成分でサイズ < min_size の成分を除去する。
-fn remove_noise(mut cells: Vec<Vec<bool>>, width: usize, height: usize, min_size: usize) -> Vec<Vec<bool>> {
+fn remove_noise(
+    mut cells: Vec<Vec<bool>>,
+    width: usize,
+    height: usize,
+    min_size: usize,
+) -> Vec<Vec<bool>> {
     let mut labels = vec![vec![0usize; width]; height];
     let mut label = 0usize;
     let mut components: Vec<Vec<(usize, usize)>> = Vec::new();
@@ -180,7 +193,14 @@ fn remove_noise(mut cells: Vec<Vec<bool>>, width: usize, height: usize, min_size
         for col in 0..width {
             if cells[row][col] && labels[row][col] == 0 {
                 label += 1;
-                components.push(flood_fill(&cells, &mut labels, (row, col), label, height, width));
+                components.push(flood_fill(
+                    &cells,
+                    &mut labels,
+                    (row, col),
+                    label,
+                    height,
+                    width,
+                ));
             }
         }
     }
@@ -195,13 +215,30 @@ fn remove_noise(mut cells: Vec<Vec<bool>>, width: usize, height: usize, min_size
     cells
 }
 
-fn neighbors_4(r: usize, c: usize, height: usize, width: usize) -> impl Iterator<Item = (usize, usize)> {
+fn neighbors_4(
+    r: usize,
+    c: usize,
+    height: usize,
+    width: usize,
+) -> impl Iterator<Item = (usize, usize)> {
     let mut arr = [(0usize, 0usize); 4];
     let mut n = 0;
-    if r > 0 { arr[n] = (r - 1, c); n += 1; }
-    if r + 1 < height { arr[n] = (r + 1, c); n += 1; }
-    if c > 0 { arr[n] = (r, c - 1); n += 1; }
-    if c + 1 < width { arr[n] = (r, c + 1); n += 1; }
+    if r > 0 {
+        arr[n] = (r - 1, c);
+        n += 1;
+    }
+    if r + 1 < height {
+        arr[n] = (r + 1, c);
+        n += 1;
+    }
+    if c > 0 {
+        arr[n] = (r, c - 1);
+        n += 1;
+    }
+    if c + 1 < width {
+        arr[n] = (r, c + 1);
+        n += 1;
+    }
     arr.into_iter().take(n)
 }
 
@@ -222,7 +259,10 @@ mod tests {
         let dyn_img = DynamicImage::ImageLuma8(img);
         let mut bytes = Vec::new();
         dyn_img
-            .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
             .expect("PNG 生成失敗");
         bytes
     }
@@ -242,7 +282,8 @@ mod tests {
     fn known_image_produces_expected_grid() {
         // 4x4 画像: 左上 2x2 が黒、残りが白
         // grid 2x2 で変換 → cells[0][0] = true, 他 = false
-        let black_pixels: Vec<(u32, u32)> = (0..2).flat_map(|y| (0..2).map(move |x| (x, y))).collect();
+        let black_pixels: Vec<(u32, u32)> =
+            (0..2).flat_map(|y| (0..2).map(move |x| (x, y))).collect();
         let png = make_test_png(4, 4, &black_pixels);
         let params = default_params(2, 2);
         let grid = image_to_grid(&png, &params).expect("変換失敗");

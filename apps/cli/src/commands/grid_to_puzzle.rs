@@ -42,8 +42,8 @@ struct PuzzleClues {
 
 pub fn run_grid_to_puzzle(args: GridToPuzzleArgs) -> Result<(), CliError> {
     let json = read_input(args.input.as_deref())?;
-    let grid: Vec<Vec<bool>> = serde_json::from_str(&json)
-        .map_err(|e| CliError::Parse(e.to_string()))?;
+    let grid: Vec<Vec<bool>> =
+        serde_json::from_str(&json).map_err(|e| CliError::Parse(e.to_string()))?;
 
     if grid.is_empty() {
         return Err(CliError::Parse("grid must not be empty".to_string()));
@@ -67,8 +67,11 @@ pub fn run_grid_to_puzzle(args: GridToPuzzleArgs) -> Result<(), CliError> {
         })
         .collect();
 
-    let output = serde_json::to_string(&PuzzleClues { row_clues, col_clues })
-        .map_err(|e| CliError::Parse(e.to_string()))?;
+    let output = serde_json::to_string(&PuzzleClues {
+        row_clues,
+        col_clues,
+    })
+    .map_err(|e| CliError::Parse(e.to_string()))?;
 
     write_output(args.output.as_deref(), &output)
 }
@@ -157,11 +160,7 @@ mod tests {
     #[test]
     fn compute_clue_used_for_col() {
         // 列クルー計算の確認
-        let grid = [
-            [true, false],
-            [true, true],
-            [false, true],
-        ];
+        let grid = [[true, false], [true, true], [false, true]];
         let col0: Vec<bool> = (0..3).map(|r| grid[r][0]).collect();
         let col1: Vec<bool> = (0..3).map(|r| grid[r][1]).collect();
         assert_eq!(compute_clue(&col0), vec![2]);

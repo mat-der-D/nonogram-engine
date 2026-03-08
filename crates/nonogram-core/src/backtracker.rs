@@ -40,10 +40,8 @@ impl Backtracker {
             let mut undo: Vec<(usize, usize, Cell)> = vec![(row, col, grid.get(row, col))];
             grid.set(row, col, hypothesis);
 
-            if LinePropagator::propagate_from_cell_and_record(
-                grid, puzzle, row, col, &mut undo,
-            )
-            .is_ok()
+            if LinePropagator::propagate_from_cell_and_record(grid, puzzle, row, col, &mut undo)
+                .is_ok()
             {
                 let remaining = max_solutions - solutions.len();
                 let found = Self::search(grid, puzzle, remaining);

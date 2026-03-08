@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use nonogram_core::{Cell, image_to_grid, ImageConvertParams};
+use nonogram_core::{Cell, ImageConvertParams, image_to_grid};
 
 use crate::error::CliError;
 use crate::io::{read_bytes, write_output};
@@ -77,16 +77,18 @@ pub fn run_convert(args: ConvertArgs) -> Result<(), CliError> {
         noise_removal: args.noise_removal,
     };
 
-    let grid = image_to_grid(&bytes, &params)
-        .map_err(|e| CliError::ImageDecode(e.to_string()))?;
+    let grid = image_to_grid(&bytes, &params).map_err(|e| CliError::ImageDecode(e.to_string()))?;
 
     // Grid を行優先 2D boolean 配列に変換
     let dot_grid: Vec<Vec<bool>> = (0..grid.height())
-        .map(|r| (0..grid.width()).map(|c| grid.get(r, c) == Cell::Filled).collect())
+        .map(|r| {
+            (0..grid.width())
+                .map(|c| grid.get(r, c) == Cell::Filled)
+                .collect()
+        })
         .collect();
 
-    let json = serde_json::to_string(&dot_grid)
-        .map_err(|e| CliError::Parse(e.to_string()))?;
+    let json = serde_json::to_string(&dot_grid).map_err(|e| CliError::Parse(e.to_string()))?;
 
     write_output(args.output.as_deref(), &json)
 }

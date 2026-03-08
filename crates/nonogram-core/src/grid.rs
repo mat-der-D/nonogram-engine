@@ -27,8 +27,16 @@ impl Grid {
     /// # Panics
     /// Panics if `row >= height` or `col >= width`.
     pub fn get(&self, row: usize, col: usize) -> Cell {
-        assert!(row < self.height, "row index {row} out of bounds (height={})", self.height);
-        assert!(col < self.width, "col index {col} out of bounds (width={})", self.width);
+        assert!(
+            row < self.height,
+            "row index {row} out of bounds (height={})",
+            self.height
+        );
+        assert!(
+            col < self.width,
+            "col index {col} out of bounds (width={})",
+            self.width
+        );
         self.cells[row * self.width + col]
     }
 
@@ -37,8 +45,16 @@ impl Grid {
     /// # Panics
     /// Panics if `row >= height` or `col >= width`.
     pub fn set(&mut self, row: usize, col: usize, value: Cell) {
-        assert!(row < self.height, "row index {row} out of bounds (height={})", self.height);
-        assert!(col < self.width, "col index {col} out of bounds (width={})", self.width);
+        assert!(
+            row < self.height,
+            "row index {row} out of bounds (height={})",
+            self.height
+        );
+        assert!(
+            col < self.width,
+            "col index {col} out of bounds (width={})",
+            self.width
+        );
         self.cells[row * self.width + col] = value;
     }
 
