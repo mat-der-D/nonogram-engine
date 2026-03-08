@@ -24,7 +24,7 @@ impl Solver for CspSolver {
         }
 
         // Phase 3: Backtracking search with max_solutions=2.
-        let solutions = Backtracker::search(&grid, puzzle, 2);
+        let solutions = Backtracker::search(&mut grid, puzzle, 2);
         SolveResult::from_solutions(solutions)
     }
 }

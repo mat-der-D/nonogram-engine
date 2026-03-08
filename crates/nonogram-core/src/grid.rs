@@ -2,11 +2,12 @@ use crate::cell::Cell;
 
 /// Represents an M x N nonogram grid where each cell holds a `Cell` value.
 ///
-/// The grid uses row-major order internally. Rows are accessed by reference,
-/// while columns are returned as newly allocated vectors.
+/// Cells are stored in a single flat `Vec<Cell>` in row-major order
+/// (`cells[row * width + col]`). This gives a single heap allocation per grid,
+/// fast `row()` slice access, and cache-friendly sequential access for propagation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Grid {
-    cells: Vec<Vec<Cell>>,
+    cells: Vec<Cell>,
     height: usize,
     width: usize,
 }
@@ -15,7 +16,7 @@ impl Grid {
     /// Creates a new grid with all cells set to `Unknown`.
     pub fn new(height: usize, width: usize) -> Self {
         Self {
-            cells: vec![vec![Cell::Unknown; width]; height],
+            cells: vec![Cell::Unknown; height * width],
             height,
             width,
         }
@@ -26,7 +27,9 @@ impl Grid {
     /// # Panics
     /// Panics if `row >= height` or `col >= width`.
     pub fn get(&self, row: usize, col: usize) -> Cell {
-        self.cells[row][col]
+        assert!(row < self.height, "row index {row} out of bounds (height={})", self.height);
+        assert!(col < self.width, "col index {col} out of bounds (width={})", self.width);
+        self.cells[row * self.width + col]
     }
 
     /// Sets the cell value at the given position.
@@ -34,7 +37,9 @@ impl Grid {
     /// # Panics
     /// Panics if `row >= height` or `col >= width`.
     pub fn set(&mut self, row: usize, col: usize, value: Cell) {
-        self.cells[row][col] = value;
+        assert!(row < self.height, "row index {row} out of bounds (height={})", self.height);
+        assert!(col < self.width, "col index {col} out of bounds (width={})", self.width);
+        self.cells[row * self.width + col] = value;
     }
 
     /// Returns the number of rows.
@@ -47,12 +52,13 @@ impl Grid {
         self.width
     }
 
-    /// Returns a reference to the specified row.
+    /// Returns a reference to the specified row as a slice.
     ///
     /// # Panics
     /// Panics if `index >= height`.
     pub fn row(&self, index: usize) -> &[Cell] {
-        &self.cells[index]
+        let start = index * self.width;
+        &self.cells[start..start + self.width]
     }
 
     /// Returns a copy of the specified column as a `Vec<Cell>`.
@@ -60,14 +66,26 @@ impl Grid {
     /// # Panics
     /// Panics if `index >= width`.
     pub fn col(&self, index: usize) -> Vec<Cell> {
-        self.cells.iter().map(|row| row[index]).collect()
+        (0..self.height)
+            .map(|r| self.cells[r * self.width + index])
+            .collect()
+    }
+
+    /// Fills `buf` with the values of the specified column.
+    ///
+    /// Avoids allocation compared to [`col`]. `buf` must have length `>= height`.
+    ///
+    /// # Panics
+    /// Panics if `index >= width` or `buf.len() < height`.
+    pub(crate) fn fill_col(&self, index: usize, buf: &mut [Cell]) {
+        for r in 0..self.height {
+            buf[r] = self.cells[r * self.width + index];
+        }
     }
 
     /// Returns `true` if no cell is `Unknown`.
     pub fn is_complete(&self) -> bool {
-        self.cells
-            .iter()
-            .all(|row| row.iter().all(|&c| c != Cell::Unknown))
+        self.cells.iter().all(|&c| c != Cell::Unknown)
     }
 }
 

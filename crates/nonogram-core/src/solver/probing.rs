@@ -55,7 +55,7 @@ impl Solver for ProbingSolver {
                     (Err(_), Ok(_)) => {
                         // Filled contradicts — force Blank.
                         grid.set(r, c, Cell::Blank);
-                        match LinePropagator::propagate(&mut grid, puzzle) {
+                        match LinePropagator::propagate_from_cell(&mut grid, puzzle, r, c) {
                             Ok(_) => {}
                             Err(_) => return SolveResult::NoSolution,
                         }
@@ -64,7 +64,7 @@ impl Solver for ProbingSolver {
                     (Ok(_), Err(_)) => {
                         // Blank contradicts — force Filled.
                         grid.set(r, c, Cell::Filled);
-                        match LinePropagator::propagate(&mut grid, puzzle) {
+                        match LinePropagator::propagate_from_cell(&mut grid, puzzle, r, c) {
                             Ok(_) => {}
                             Err(_) => return SolveResult::NoSolution,
                         }
@@ -98,7 +98,7 @@ impl Solver for ProbingSolver {
         }
 
         // Phase 3: Fall back to backtracking.
-        let solutions = Backtracker::search(&grid, puzzle, 2);
+        let solutions = Backtracker::search(&mut grid, puzzle, 2);
         SolveResult::from_solutions(solutions)
     }
 }
@@ -114,7 +114,7 @@ impl ProbingSolver {
     ) -> Result<Grid, ()> {
         let mut trial = grid.clone();
         trial.set(row, col, value);
-        match LinePropagator::propagate(&mut trial, puzzle) {
+        match LinePropagator::propagate_from_cell(&mut trial, puzzle, row, col) {
             Ok(_) => Ok(trial),
             Err(_) => Err(()),
         }
