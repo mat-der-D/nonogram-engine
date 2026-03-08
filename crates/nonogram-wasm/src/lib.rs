@@ -1,4 +1,4 @@
-use nonogram_core::{CspSolver, Solver};
+use nonogram_core::{ProbingSolver, Solver};
 use nonogram_format::{grid_to_json, puzzle_from_json, result_to_json};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -95,7 +95,7 @@ pub fn solve(puzzle_json: &str) -> String {
         Err(e) => return error_json(e.to_string()),
     };
 
-    let result = CspSolver.solve(&puzzle);
+    let result = ProbingSolver.solve(&puzzle);
 
     match result_to_json(&result) {
         Ok(json) => json,

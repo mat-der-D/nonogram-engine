@@ -4,6 +4,7 @@ import { EditorToolbar } from './components/EditorToolbar';
 import { EditorGrid } from './components/EditorGrid';
 import { SolverModal } from './components/SolverModal';
 import { ConvertModal } from './components/ConvertModal';
+import { ImportModal } from './components/ImportModal';
 import './App.css';
 
 function MakerApp() {
@@ -35,6 +36,7 @@ function MakerApp() {
       </main>
       <SolverModal store={store} />
       {store.isConvertOpen && <ConvertModal store={store} />}
+      <ImportModal store={store} />
     </div>
   );
 }
