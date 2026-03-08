@@ -116,112 +116,74 @@ impl ImplicationGraph {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2: FP2 probing
+// Phase 2: FP2 probe state
 // ---------------------------------------------------------------------------
 
-impl ProbingSolver {
-    fn fp2_probe(grid: &mut Grid, puzzle: &Puzzle) -> Result<(), ()> {
-        let height = puzzle.height();
-        let width = puzzle.width();
-        let mut graph = ImplicationGraph::new(height, width);
+/// Bundles the mutable state threaded through the FP2 probing loop:
+/// the implication graph, the work queue, and the in-queue bitmap.
+#[derive(Debug)]
+struct ProbeState {
+    graph: ImplicationGraph,
+    queue: VecDeque<(usize, usize)>,
+    in_queue: Vec<bool>,
+}
 
-        let mut in_queue = vec![false; height * width];
-        let mut probe_queue: VecDeque<(usize, usize)> = VecDeque::new();
-        for r in 0..height {
-            for c in 0..width {
-                if grid.get(r, c) == Cell::Unknown {
-                    in_queue[r * width + c] = true;
-                    probe_queue.push_back((r, c));
-                }
-            }
+impl ProbeState {
+    fn new(height: usize, width: usize) -> Self {
+        ProbeState {
+            graph: ImplicationGraph::new(height, width),
+            queue: VecDeque::new(),
+            in_queue: vec![false; height * width],
         }
-
-        while let Some((r, c)) = probe_queue.pop_front() {
-            in_queue[r * width + c] = false;
-
-            if grid.get(r, c) != Cell::Unknown {
-                continue;
-            }
-
-            let filled_result = Self::probe_recording(grid, puzzle, r, c, Cell::Filled);
-            let blank_result = Self::probe_recording(grid, puzzle, r, c, Cell::Blank);
-
-            let forced = match (&filled_result, &blank_result) {
-                (Err(_), Err(_)) => return Err(()),
-                (Err(_), Ok(_)) => Some(Cell::Blank),
-                (Ok(_), Err(_)) => Some(Cell::Filled),
-                (Ok(_), Ok(_)) => None,
-            };
-
-            if let Some(value) = forced {
-                grid.set(r, c, value);
-                Self::commit_literal(
-                    grid, puzzle, &graph, r, c, value,
-                    &mut probe_queue, &mut in_queue,
-                )?;
-            } else {
-                let (filled_grid, filled_changes) = filled_result.unwrap();
-                let (blank_grid, blank_changes) = blank_result.unwrap();
-                let lit_filled = graph.encode(r, c, Cell::Filled);
-                let lit_blank = graph.encode(r, c, Cell::Blank);
-                for (jr, jc, jv) in &filled_changes {
-                    graph.add(lit_filled, graph.encode(*jr, *jc, *jv));
-                }
-                for (jr, jc, jv) in &blank_changes {
-                    graph.add(lit_blank, graph.encode(*jr, *jc, *jv));
-                }
-
-                let mut committed: Vec<(usize, usize, Cell)> = Vec::new();
-                for row2 in 0..height {
-                    for col2 in 0..width {
-                        if grid.get(row2, col2) == Cell::Unknown {
-                            let f = filled_grid.get(row2, col2);
-                            let b = blank_grid.get(row2, col2);
-                            if f != Cell::Unknown && f == b {
-                                grid.set(row2, col2, f);
-                                committed.push((row2, col2, f));
-                            }
-                        }
-                    }
-                }
-
-                if !committed.is_empty() {
-                    LinePropagator::propagate(grid, puzzle).map_err(|_| ())?;
-                    for (jr, jc, jv) in committed {
-                        Self::commit_literal(
-                            grid, puzzle, &graph, jr, jc, jv,
-                            &mut probe_queue, &mut in_queue,
-                        )?;
-                    }
-                }
-            }
-
-            if grid.is_complete() {
-                return Ok(());
-            }
-        }
-
-        Ok(())
     }
 
-    /// After a cell is committed, propagates its implications through the graph
-    /// and enqueues contrapositive consequences for targeted re-probing.
-    #[allow(clippy::too_many_arguments)]
-    fn commit_literal(
+    fn enqueue_unknown_cells(&mut self, grid: &Grid) {
+        let width = self.graph.width;
+        for r in 0..grid.height() {
+            for c in 0..grid.width() {
+                if grid.get(r, c) == Cell::Unknown {
+                    self.in_queue[r * width + c] = true;
+                    self.queue.push_back((r, c));
+                }
+            }
+        }
+    }
+
+    fn dequeue(&mut self) -> Option<(usize, usize)> {
+        let (r, c) = self.queue.pop_front()?;
+        self.in_queue[r * self.graph.width + c] = false;
+        Some((r, c))
+    }
+
+    fn enqueue_if_absent(&mut self, r: usize, c: usize) {
+        let idx = r * self.graph.width + c;
+        if !self.in_queue[idx] {
+            self.in_queue[idx] = true;
+            self.queue.push_back((r, c));
+        }
+    }
+
+    /// After committing `(r, c) = value`: apply forward-implied literals,
+    /// propagate, then enqueue cells reachable from the opposite literal.
+    fn commit(
+        &mut self,
         grid: &mut Grid,
         puzzle: &Puzzle,
-        graph: &ImplicationGraph,
         r: usize,
         c: usize,
         value: Cell,
-        probe_queue: &mut VecDeque<(usize, usize)>,
-        in_queue: &mut [bool],
     ) -> Result<(), ()> {
-        let lit = graph.encode(r, c, value);
+        let lit = self.graph.encode(r, c, value);
+        self.apply_implications(grid, lit)?;
+        LinePropagator::propagate(grid, puzzle).map_err(|_| ())?;
+        self.enqueue_contrapositive_targets(grid, lit);
+        Ok(())
+    }
 
-        // Directly apply all forward-implied literals.
-        for implied in graph.consequences(lit) {
-            let (ir, ic, iv) = graph.decode(implied);
+    /// Apply all forward-implied literals to `grid`.
+    fn apply_implications(&self, grid: &mut Grid, lit: usize) -> Result<(), ()> {
+        for implied in self.graph.consequences(lit) {
+            let (ir, ic, iv) = self.graph.decode(implied);
             let current = grid.get(ir, ic);
             if current == Cell::Unknown {
                 grid.set(ir, ic, iv);
@@ -229,19 +191,110 @@ impl ProbingSolver {
                 return Err(());
             }
         }
+        Ok(())
+    }
 
-        LinePropagator::propagate(grid, puzzle).map_err(|_| ())?;
-
-        // Enqueue cells reachable from the opposite literal for re-probing.
-        let width = graph.width;
-        for cons in graph.consequences(lit ^ 1) {
-            let (cr, cc, _) = graph.decode(cons);
-            if grid.get(cr, cc) == Cell::Unknown && !in_queue[cr * width + cc] {
-                in_queue[cr * width + cc] = true;
-                probe_queue.push_back((cr, cc));
+    /// Enqueue unknown cells reachable from `lit ^ 1` (the opposite literal).
+    fn enqueue_contrapositive_targets(&mut self, grid: &Grid, lit: usize) {
+        for cons in self.graph.consequences(lit ^ 1) {
+            let (cr, cc, _) = self.graph.decode(cons);
+            if grid.get(cr, cc) == Cell::Unknown {
+                self.enqueue_if_absent(cr, cc);
             }
         }
+    }
 
+    /// Record implication edges from `src_lit` to each cell in `changes`.
+    fn record_edges(&mut self, src_lit: usize, changes: &[(usize, usize, Cell)]) {
+        for &(jr, jc, jv) in changes {
+            let target = self.graph.encode(jr, jc, jv);
+            self.graph.add(src_lit, target);
+        }
+    }
+
+    /// Commit cells that reached the same non-Unknown value in both probe
+    /// outcomes but are still Unknown in `grid`.
+    fn commit_common_cells(
+        &mut self,
+        grid: &mut Grid,
+        puzzle: &Puzzle,
+        filled_grid: &Grid,
+        blank_grid: &Grid,
+    ) -> Result<(), ()> {
+        let common: Vec<(usize, usize, Cell)> = (0..grid.height())
+            .flat_map(|r| (0..grid.width()).map(move |c| (r, c)))
+            .filter(|&(r, c)| grid.get(r, c) == Cell::Unknown)
+            .filter_map(|(r, c)| {
+                let f = filled_grid.get(r, c);
+                (f != Cell::Unknown && f == blank_grid.get(r, c)).then_some((r, c, f))
+            })
+            .collect();
+
+        if common.is_empty() {
+            return Ok(());
+        }
+        for &(r, c, v) in &common {
+            grid.set(r, c, v);
+        }
+        LinePropagator::propagate(grid, puzzle).map_err(|_| ())?;
+        for (r, c, v) in common {
+            self.commit(grid, puzzle, r, c, v)?;
+        }
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: FP2 probing
+// ---------------------------------------------------------------------------
+
+impl ProbingSolver {
+    fn fp2_probe(grid: &mut Grid, puzzle: &Puzzle) -> Result<(), ()> {
+        let mut state = ProbeState::new(puzzle.height(), puzzle.width());
+        state.enqueue_unknown_cells(grid);
+
+        while let Some((r, c)) = state.dequeue() {
+            if grid.get(r, c) != Cell::Unknown {
+                continue;
+            }
+            Self::probe_cell(grid, puzzle, &mut state, r, c)?;
+            if grid.is_complete() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    /// Probe a single cell with both hypotheses and update state accordingly.
+    fn probe_cell(
+        grid: &mut Grid,
+        puzzle: &Puzzle,
+        state: &mut ProbeState,
+        r: usize,
+        c: usize,
+    ) -> Result<(), ()> {
+        let filled = Self::probe_recording(grid, puzzle, r, c, Cell::Filled);
+        let blank = Self::probe_recording(grid, puzzle, r, c, Cell::Blank);
+
+        let forced = match (&filled, &blank) {
+            (Err(_), Err(_)) => return Err(()),
+            (Err(_), Ok(_)) => Some(Cell::Blank),
+            (Ok(_), Err(_)) => Some(Cell::Filled),
+            (Ok(_), Ok(_)) => None,
+        };
+
+        if let Some(value) = forced {
+            grid.set(r, c, value);
+            state.commit(grid, puzzle, r, c, value)?;
+        } else {
+            let (filled_grid, filled_changes) = filled.unwrap();
+            let (blank_grid, blank_changes) = blank.unwrap();
+            let lit_filled = state.graph.encode(r, c, Cell::Filled);
+            let lit_blank = state.graph.encode(r, c, Cell::Blank);
+            state.record_edges(lit_filled, &filled_changes);
+            state.record_edges(lit_blank, &blank_changes);
+            state.commit_common_cells(grid, puzzle, &filled_grid, &blank_grid)?;
+        }
         Ok(())
     }
 
@@ -298,47 +351,51 @@ impl ProbingSolver {
             return;
         }
 
-        // Forced-cell pass: for each unknown cell, probe both values.
-        // If one leads to contradiction, force the other.
-        // Record all changes in `node_undo` for rollback.
+        // Forced-cell pass: probe each unknown cell and force any that have
+        // only one consistent value. Record all changes for rollback.
         let mut node_undo: Vec<(usize, usize, Cell)> = Vec::new();
-        let forcing_ok = Self::force_cells(grid, puzzle, &mut node_undo);
-
-        if forcing_ok.is_ok() {
+        if Self::force_cells(grid, puzzle, &mut node_undo).is_ok() {
             if grid.is_complete() {
                 solutions.push(grid.clone());
-            } else {
-                // Select the most constrained unknown cell (degree heuristic).
-                if let Some((row, col)) = Self::select_cell(grid) {
-                    for &hypothesis in &[Cell::Filled, Cell::Blank] {
-                        if solutions.len() >= max {
-                            break;
-                        }
-
-                        let mut branch_undo: Vec<(usize, usize, Cell)> =
-                            vec![(row, col, grid.get(row, col))];
-                        grid.set(row, col, hypothesis);
-
-                        if LinePropagator::propagate_from_cell_and_record(
-                            grid, puzzle, row, col, &mut branch_undo,
-                        )
-                        .is_ok()
-                        {
-                            Self::probing_search_inner(grid, puzzle, solutions, max);
-                        }
-
-                        // Undo this branch's changes.
-                        for &(r, c, old) in branch_undo.iter().rev() {
-                            grid.set(r, c, old);
-                        }
-                    }
-                }
+            } else if let Some((row, col)) = Self::select_cell(grid) {
+                Self::try_hypotheses(grid, puzzle, solutions, max, row, col);
             }
         }
 
-        // Undo the forced-cell changes for this node.
         for &(r, c, old) in node_undo.iter().rev() {
             grid.set(r, c, old);
+        }
+    }
+
+    /// Try both values for `(row, col)`, recursing into each consistent branch.
+    fn try_hypotheses(
+        grid: &mut Grid,
+        puzzle: &Puzzle,
+        solutions: &mut Vec<Grid>,
+        max: usize,
+        row: usize,
+        col: usize,
+    ) {
+        for &hypothesis in &[Cell::Filled, Cell::Blank] {
+            if solutions.len() >= max {
+                break;
+            }
+
+            let mut branch_undo: Vec<(usize, usize, Cell)> =
+                vec![(row, col, grid.get(row, col))];
+            grid.set(row, col, hypothesis);
+
+            if LinePropagator::propagate_from_cell_and_record(
+                grid, puzzle, row, col, &mut branch_undo,
+            )
+            .is_ok()
+            {
+                Self::probing_search_inner(grid, puzzle, solutions, max);
+            }
+
+            for &(r, c, old) in branch_undo.iter().rev() {
+                grid.set(r, c, old);
+            }
         }
     }
 
