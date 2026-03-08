@@ -6,7 +6,7 @@ use nonogram_format::generate_template;
 use crate::error::CliError;
 use crate::io::write_output;
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 pub struct TemplateArgs {
     /// 行数（1 以上）
     #[arg(long, value_name = "N")]

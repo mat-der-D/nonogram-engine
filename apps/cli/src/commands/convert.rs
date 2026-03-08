@@ -6,7 +6,7 @@ use nonogram_core::{Cell, image_to_grid, ImageConvertParams};
 use crate::error::CliError;
 use crate::io::{read_bytes, write_output};
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 pub struct ConvertArgs {
     /// 入力画像ファイルパス（必須）
     #[arg(long, value_name = "PATH")]

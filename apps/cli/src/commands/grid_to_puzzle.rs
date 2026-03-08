@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::error::CliError;
 use crate::io::{read_input, write_output};
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 pub struct GridToPuzzleArgs {
     /// 入力ファイルパス（省略時は stdin）
     #[arg(long, value_name = "PATH")]
@@ -17,7 +17,7 @@ pub struct GridToPuzzleArgs {
 }
 
 /// 1 行（または 1 列）の bool スライスからクルーを計算する。
-pub fn compute_clue(line: &[bool]) -> Vec<u32> {
+fn compute_clue(line: &[bool]) -> Vec<u32> {
     let mut clues = Vec::new();
     let mut count = 0u32;
     for &cell in line {
@@ -119,8 +119,8 @@ mod tests {
         let json = r#"[[true,false],[false,true]]"#;
         let grid: Vec<Vec<bool>> = serde_json::from_str(json).unwrap();
         assert_eq!(grid.len(), 2);
-        assert_eq!(grid[0][0], true);
-        assert_eq!(grid[1][1], true);
+        assert!(grid[0][0]);
+        assert!(grid[1][1]);
     }
 
     #[test]
@@ -138,7 +138,6 @@ mod tests {
 
     #[test]
     fn run_grid_to_puzzle_row_length_mismatch_returns_parse_error() {
-        let args = GridToPuzzleArgs { input: None, output: None };
         // 行長不一致: 1列と2列
         let json = r#"[[true],[false,true]]"#;
         let grid: Vec<Vec<bool>> = serde_json::from_str(json).unwrap();
@@ -146,23 +145,22 @@ mod tests {
         let cols = grid[0].len();
         let has_mismatch = grid.iter().any(|row| row.len() != cols);
         assert!(has_mismatch);
-        drop(args);
     }
 
     #[test]
     fn run_grid_to_puzzle_empty_grid_returns_parse_error() {
         // 空配列
-        let grid: Vec<Vec<bool>> = vec![];
+        let grid: &[Vec<bool>] = &[];
         assert!(grid.is_empty());
     }
 
     #[test]
     fn compute_clue_used_for_col() {
         // 列クルー計算の確認
-        let grid = vec![
-            vec![true, false],
-            vec![true, true],
-            vec![false, true],
+        let grid = [
+            [true, false],
+            [true, true],
+            [false, true],
         ];
         let col0: Vec<bool> = (0..3).map(|r| grid[r][0]).collect();
         let col1: Vec<bool> = (0..3).map(|r| grid[r][1]).collect();

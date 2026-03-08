@@ -7,13 +7,13 @@ use nonogram_format::{puzzle_from_json, result_to_json};
 use crate::error::CliError;
 use crate::io::{read_input, write_output};
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, Debug, PartialEq, Eq, ValueEnum)]
 pub enum SolverKind {
     Csp,
     Probing,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 pub struct SolveArgs {
     /// 入力ファイルパス（省略時は stdin）
     #[arg(long, value_name = "PATH")]
@@ -59,12 +59,6 @@ mod tests {
 
     #[test]
     fn run_solve_unique_solution_outputs_json() {
-        let args = SolveArgs {
-            input: None,
-            output: None,
-            solver: SolverKind::Csp,
-        };
-        // テスト用に関数ロジックを直接検証
         let json = unique_puzzle_json();
         let puzzle = puzzle_from_json(json).unwrap();
         let result = CspSolver.solve(&puzzle);
@@ -72,8 +66,6 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&output).unwrap();
         assert_eq!(v["status"], "unique");
         assert_eq!(v["solutions"].as_array().unwrap().len(), 1);
-        // suppress unused warning
-        drop(args);
     }
 
     #[test]
