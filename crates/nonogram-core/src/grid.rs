@@ -27,8 +27,16 @@ impl Grid {
     /// # Panics
     /// Panics if `row >= height` or `col >= width`.
     pub fn get(&self, row: usize, col: usize) -> Cell {
-        assert!(row < self.height, "row index {row} out of bounds (height={})", self.height);
-        assert!(col < self.width, "col index {col} out of bounds (width={})", self.width);
+        assert!(
+            row < self.height,
+            "row index {row} out of bounds (height={})",
+            self.height
+        );
+        assert!(
+            col < self.width,
+            "col index {col} out of bounds (width={})",
+            self.width
+        );
         self.cells[row * self.width + col]
     }
 
@@ -37,8 +45,16 @@ impl Grid {
     /// # Panics
     /// Panics if `row >= height` or `col >= width`.
     pub fn set(&mut self, row: usize, col: usize, value: Cell) {
-        assert!(row < self.height, "row index {row} out of bounds (height={})", self.height);
-        assert!(col < self.width, "col index {col} out of bounds (width={})", self.width);
+        assert!(
+            row < self.height,
+            "row index {row} out of bounds (height={})",
+            self.height
+        );
+        assert!(
+            col < self.width,
+            "col index {col} out of bounds (width={})",
+            self.width
+        );
         self.cells[row * self.width + col] = value;
     }
 
@@ -78,8 +94,8 @@ impl Grid {
     /// # Panics
     /// Panics if `index >= width` or `buf.len() < height`.
     pub(crate) fn fill_col(&self, index: usize, buf: &mut [Cell]) {
-        for r in 0..self.height {
-            buf[r] = self.cells[r * self.width + index];
+        for (r, cell) in buf.iter_mut().enumerate().take(self.height) {
+            *cell = self.cells[r * self.width + index];
         }
     }
 

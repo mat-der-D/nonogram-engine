@@ -28,8 +28,7 @@ pub struct SolveArgs {
 
 pub fn run_solve(args: SolveArgs) -> Result<(), CliError> {
     let json = read_input(args.input.as_deref())?;
-    let puzzle = puzzle_from_json(&json)
-        .map_err(|e| CliError::Parse(e.to_string()))?;
+    let puzzle = puzzle_from_json(&json).map_err(|e| CliError::Parse(e.to_string()))?;
 
     let solver: Box<dyn Solver> = match args.solver {
         SolverKind::Csp => Box::new(CspSolver),
@@ -37,8 +36,7 @@ pub fn run_solve(args: SolveArgs) -> Result<(), CliError> {
     };
 
     let result = solver.solve(&puzzle);
-    let output = result_to_json(&result)
-        .map_err(|e| CliError::Parse(e.to_string()))?;
+    let output = result_to_json(&result).map_err(|e| CliError::Parse(e.to_string()))?;
 
     write_output(args.output.as_deref(), &output)
 }

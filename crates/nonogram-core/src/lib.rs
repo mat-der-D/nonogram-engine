@@ -6,20 +6,20 @@ mod puzzle;
 mod solver;
 
 mod backtracker;
+pub mod image;
 mod propagator;
 mod validation;
-pub mod image;
 
 pub use cell::Cell;
 pub use clue::Clue;
 pub use error::{Error, ValidationError};
 pub use grid::Grid;
+pub use image::{ImageConvertParams, ImageError, image_to_grid};
 pub use puzzle::Puzzle;
 pub use solver::csp::CspSolver;
 pub use solver::probing::ProbingSolver;
 pub use solver::{SolveResult, Solver};
 pub use validation::validate;
-pub use image::{image_to_grid, ImageConvertParams, ImageError};
 
 #[cfg(test)]
 mod tests {

@@ -73,7 +73,10 @@ pub fn image_to_grid(
         Err(e) => return error_json(e.to_string()),
     };
 
-    let dto = OkGridResponseDto { status: "ok", grid: grid_value };
+    let dto = OkGridResponseDto {
+        status: "ok",
+        grid: grid_value,
+    };
     serde_json::to_string(&dto).expect("OkGridResponseDto always serializes")
 }
 
@@ -201,7 +204,10 @@ mod tests {
         let dyn_img = DynamicImage::ImageLuma8(img);
         let mut bytes = Vec::new();
         dyn_img
-            .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
             .expect("PNG 生成失敗");
         bytes
     }

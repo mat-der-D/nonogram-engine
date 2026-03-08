@@ -35,21 +35,33 @@ mod tests {
 
     #[test]
     fn run_template_rows_zero_returns_validation_error() {
-        let args = TemplateArgs { rows: 0, cols: 5, output: None };
+        let args = TemplateArgs {
+            rows: 0,
+            cols: 5,
+            output: None,
+        };
         let err = run_template(args).unwrap_err();
         assert!(matches!(err, CliError::Validation(_)));
     }
 
     #[test]
     fn run_template_cols_zero_returns_validation_error() {
-        let args = TemplateArgs { rows: 5, cols: 0, output: None };
+        let args = TemplateArgs {
+            rows: 5,
+            cols: 0,
+            output: None,
+        };
         let err = run_template(args).unwrap_err();
         assert!(matches!(err, CliError::Validation(_)));
     }
 
     #[test]
     fn run_template_both_zero_returns_validation_error() {
-        let args = TemplateArgs { rows: 0, cols: 0, output: None };
+        let args = TemplateArgs {
+            rows: 0,
+            cols: 0,
+            output: None,
+        };
         let err = run_template(args).unwrap_err();
         assert!(matches!(err, CliError::Validation(_)));
     }

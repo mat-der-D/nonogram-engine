@@ -25,7 +25,9 @@ pub fn write_output(path: Option<&Path>, content: &str) -> Result<(), CliError> 
     match path {
         Some(p) => std::fs::write(p, content).map_err(CliError::Io),
         None => {
-            io::stdout().write_all(content.as_bytes()).map_err(CliError::Io)?;
+            io::stdout()
+                .write_all(content.as_bytes())
+                .map_err(CliError::Io)?;
             Ok(())
         }
     }

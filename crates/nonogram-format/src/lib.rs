@@ -54,7 +54,11 @@ fn grid_to_bool_matrix(grid: &Grid) -> Result<Vec<Vec<bool>>, FormatError> {
 /// - `FormatError::UnknownCell` — グリッドに `Cell::Unknown` が含まれる場合
 /// - `FormatError::Json` — serde_json シリアライズ失敗
 pub fn grid_to_json(grid: &Grid) -> Result<String, FormatError> {
-    let dto = GridDto { rows: grid.height(), cols: grid.width(), cells: grid_to_bool_matrix(grid)? };
+    let dto = GridDto {
+        rows: grid.height(),
+        cols: grid.width(),
+        cells: grid_to_bool_matrix(grid)?,
+    };
     Ok(serde_json::to_string(&dto)?)
 }
 
@@ -185,7 +189,15 @@ mod tests {
         // rows=2 but cells has 3 rows
         let json = r#"{"rows":2,"cols":2,"cells":[[true,false],[false,true],[true,true]]}"#;
         let err = json_to_grid(json).unwrap_err();
-        assert!(matches!(err, FormatError::ShapeMismatch { rows: 2, cols: 2, actual_rows: 3, actual_cols: 2 }));
+        assert!(matches!(
+            err,
+            FormatError::ShapeMismatch {
+                rows: 2,
+                cols: 2,
+                actual_rows: 3,
+                actual_cols: 2
+            }
+        ));
     }
 
     #[test]
@@ -193,7 +205,15 @@ mod tests {
         // cols=2 but first row has 3 cells
         let json = r#"{"rows":1,"cols":2,"cells":[[true,false,true]]}"#;
         let err = json_to_grid(json).unwrap_err();
-        assert!(matches!(err, FormatError::ShapeMismatch { rows: 1, cols: 2, actual_rows: 1, actual_cols: 3 }));
+        assert!(matches!(
+            err,
+            FormatError::ShapeMismatch {
+                rows: 1,
+                cols: 2,
+                actual_rows: 1,
+                actual_cols: 3
+            }
+        ));
     }
 
     #[test]
@@ -365,7 +385,8 @@ mod tests {
     #[test]
     fn generate_template_structure() {
         let json = generate_template(5, 10);
-        let expected = r#"{"row_clues":[[],[],[],[],[]],"col_clues":[[],[],[],[],[],[],[],[],[],[]]}"#;
+        let expected =
+            r#"{"row_clues":[[],[],[],[],[]],"col_clues":[[],[],[],[],[],[],[],[],[],[]]}"#;
         assert_eq!(json, expected);
     }
 }

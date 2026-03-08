@@ -29,7 +29,11 @@ fn solve_unique_solution() {
         .wait_with_output_and_stdin(json.as_bytes())
         .expect("failed to wait");
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let v: serde_json::Value = serde_json::from_str(&stdout).expect("invalid JSON output");
     assert_eq!(v["status"], "unique");
@@ -68,7 +72,10 @@ fn solve_invalid_json_nonzero_exit() {
         .wait_with_output_and_stdin(b"not json")
         .expect("failed to wait");
 
-    assert!(!output.status.success(), "should exit non-zero on invalid JSON");
+    assert!(
+        !output.status.success(),
+        "should exit non-zero on invalid JSON"
+    );
 }
 
 #[test]
@@ -118,7 +125,10 @@ fn template_output_to_file() {
 
     assert!(output.status.success());
     // stdout は空
-    assert!(output.stdout.is_empty(), "stdout should be empty when --output is specified");
+    assert!(
+        output.stdout.is_empty(),
+        "stdout should be empty when --output is specified"
+    );
     // ファイルに JSON が書き込まれている
     let content = std::fs::read_to_string(&path).expect("failed to read output file");
     let v: serde_json::Value = serde_json::from_str(&content).expect("invalid JSON in file");
@@ -142,7 +152,11 @@ fn grid_to_puzzle_computes_clues() {
         .wait_with_output_and_stdin(json.as_bytes())
         .expect("failed to wait");
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let v: serde_json::Value = serde_json::from_str(&stdout).expect("invalid JSON output");
     let row_clues = v["row_clues"].as_array().unwrap();
@@ -172,7 +186,10 @@ fn grid_to_puzzle_output_to_file() {
         .expect("failed to wait");
 
     assert!(output.status.success());
-    assert!(output.stdout.is_empty(), "stdout should be empty when --output is specified");
+    assert!(
+        output.stdout.is_empty(),
+        "stdout should be empty when --output is specified"
+    );
     let content = std::fs::read_to_string(&path).expect("failed to read output file");
     let v: serde_json::Value = serde_json::from_str(&content).expect("invalid JSON in file");
     assert!(v["row_clues"].is_array());
@@ -210,7 +227,11 @@ fn pipeline_grid_to_puzzle_then_solve() {
         .wait_with_output_and_stdin(&gtp_output.stdout)
         .expect("failed to wait");
 
-    assert!(solve_output.status.success(), "stderr: {}", String::from_utf8_lossy(&solve_output.stderr));
+    assert!(
+        solve_output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&solve_output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&solve_output.stdout);
     let v: serde_json::Value = serde_json::from_str(&stdout).expect("invalid JSON output");
     assert!(v["status"].is_string());
